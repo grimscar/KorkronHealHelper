@@ -31,6 +31,7 @@ local options           -- Advisor.Options() for the current version
 
 local BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 local AURA_SIZE = 14
+local MINE_SIZE = 12    -- her own buffs: a little smaller, to fit under the advice's click text
 -- power bar colours by power type: mana, rage, focus, energy
 local POWER_COLORS = { [0] = { 0.25, 0.45, 1 }, [1] = { 0.9, 0.2, 0.2 }, [2] = { 1, 0.5, 0.25 }, [3] = { 1, 0.9, 0.2 } }
 local TINT_ALPHA = 0.55
@@ -114,9 +115,9 @@ local function DispelColorMap()
 end
 
 -- one Blizzard-run aura icon (runs inside Blizzard's code: never let an error escape)
-local function InitAuraButton(ab, harmful)
+local function InitAuraButton(ab, harmful, size)
     pcall(function()
-        ab:SetSize(AURA_SIZE, AURA_SIZE)
+        ab:SetSize(size, size)
         ab.Icon = ab:CreateTexture(nil, "ARTWORK")
         ab.Icon:SetAllPoints(ab)
         ab.Icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -184,21 +185,32 @@ local function Grow(c, point, rightwards)
     end
 end
 
--- an icon row: the first filter the client accepts wins; nil if none
-local function IconContainer(button, filters, harmful, maxCount, point, x, y, rightwards, relativeTo)
+-- an icon row: the first filter the client accepts wins; nil if none. `candidates` (optional)
+-- narrows it further, the game applying it in combat too; dropped if the client refuses it.
+local function IconContainer(button, filters, harmful, maxCount, point, x, y, rightwards, relativeTo, candidates)
     local c = NewContainer(button, button.overlay:GetFrameLevel() + 1)
     c:SetPoint(point, relativeTo or button.content, point, x, y)
-    for _, filter in ipairs(filters) do
-        local ok = pcall(function()
+    -- debuff icons have a coloured border around them: a little more room
+    local size, gap = harmful and AURA_SIZE or MINE_SIZE, harmful and 3 or 2
+    local function Add(filter, cf)
+        return pcall(function()
             c:AddAuraGroup("main", filter, {
                 maxFrameCount = maxCount,
-                layout = { elementWidth = AURA_SIZE, elementHeight = AURA_SIZE, elementSpacing = 3, lineSpacing = 3 },
-                initializeFrame = function(ab) InitAuraButton(ab, harmful) end,
+                layout = { elementWidth = size, elementHeight = size, elementSpacing = gap, lineSpacing = gap },
+                candidateFilters = cf,
+                initializeFrame = function(ab) InitAuraButton(ab, harmful, size) end,
             })
         end)
+    end
+    for _, filter in ipairs(filters) do
+        local ok = Add(filter, candidates)
+        if not ok and candidates then
+            ok = Add(filter, nil)
+            if ok then TellOnce("candidates", "this game build won't hide long buffs on the frames, so all of your buffs show.") end
+        end
         if ok then
             Grow(c, point, rightwards)
-            Try(c, "SetFlowLayoutMaximumLineSize", maxCount * (AURA_SIZE + 3))
+            Try(c, "SetFlowLayoutMaximumLineSize", maxCount * (size + gap))
             Try(c, "SetEnabled", false)
             return c, filter
         end
@@ -210,7 +222,7 @@ end
 -- one group per dispel type, each owning its colour; nil if the client refuses the type filter
 local function TintContainer(button, filter)
     local c = NewContainer(button, button.health:GetFrameLevel() + 1)
-    c:SetPoint("CENTER", button.content, "CENTER")
+    c:SetPoint("CENTER", button.health, "CENTER")
     local ok, err = pcall(function()
         for _, kind in ipairs(DISPEL_KINDS) do
             c:AddAuraGroup("tint" .. kind, filter, {
@@ -247,7 +259,17 @@ local function BuildAuraContainers(button)
     else
         TellOnce("icons", "this game build won't draw debuff icons on addon frames; using the simple version, which only works out of combat.")
     end
-    button.mineContainer = IconContainer(button, { "HELPFUL|PLAYER" }, false, 3, "TOPRIGHT", -2, -2, false)
+    -- her buffs and HoTs along the bottom, just left of the advice column (which stays clear for
+    -- its text); long ones (Mark of the Wild, Fortitude) left out: a healer cares about what runs
+    -- out in a fight. Changes need a /reload.
+    local minutes = c.mineMaxMinutes or 0
+    button.mineContainer = IconContainer(button, { "HELPFUL|PLAYER" }, false, 3, "BOTTOMRIGHT", -2, 1, false,
+        button.health, minutes > 0 and { maxDuration = minutes * 60 } or nil)
+    if button.mineContainer then
+        button.mineContainer:ClearAllPoints()
+        button.mineContainer:SetPoint("RIGHT", button.adviceHolder, "LEFT", -2, 0)
+        button.mineContainer:SetPoint("BOTTOM", button.health, "BOTTOM", 0, 1)
+    end
     Frames.UpdateAuraUnit(button)
 end
 
@@ -310,8 +332,15 @@ end
 --   StatusBar across the frame with the range (fits - 1, fits), fed the (hidden) missing health,
 --   so its fill is either empty or full. The heal's label and border sit in a clipping frame
 --   running from the next bigger heal's fill edge to its own fill edge: visible only while this
---   heal fits and the next one doesn't. The emergency heal is a bar fed a step curve of health
---   percent; the normal heals are clipped to the part of the frame its fill leaves empty.
+--   heal fits and the next one doesn't. Her HoTs on them raise every gate by the healing they
+--   will still do (changing a plain bar's range is fine in combat).
+--   The emergency gate is the other way round: its fill is full while they're safe. The normal
+--   heals are clipped to its fill, the fast heal to the part its fill leaves empty. Safe means
+--   health above the danger line (damage per second times the slow heal's cast, Tracker.lua), so
+--   it's fed the (hidden) health; while damage is hidden, a step curve of health percent instead.
+--   A second, shield gate starts at the end of the emergency gate's fill and is fed their
+--   (hidden) shield: the normal heals run to the end of its fill, the fast heal sits in a clip
+--   inside the fast-heal clip that starts there, so it shows only while neither is full.
 -- * Lua (older clients): bands of health fraction, chosen while health is readable (text only).
 
 local BORDER = 2
@@ -386,22 +415,35 @@ local function BuildGates(button)
     button.gateVersion = version
     local holder, area = button.adviceHolder, button.content
     if not button.emergencyGate then
-        local e = { bar = GateBar(button), clip = ClipFrame(holder) }
+        local e = { bar = GateBar(button), shield = GateBar(button), clip = ClipFrame(holder) }
         local fill = e.bar:GetStatusBarTexture()
-        e.clip:SetPoint("TOPLEFT", area, "TOPLEFT")
-        e.clip:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
-        e.label = Label(e.clip, holder, area)
+        -- the shield gate starts where the health gate's fill ends: its fill's end is at the
+        -- frame's right edge (or further) when either is full, at the left edge when both are empty
+        e.shield:ClearAllPoints()
+        e.shield:SetPoint("TOPLEFT", fill, "TOPRIGHT")
+        e.shield:SetPoint("BOTTOMLEFT", fill, "BOTTOMRIGHT")
+        e.shield:SetWidth(area:GetWidth())
+        area:HookScript("OnSizeChanged", function(_, width) e.shield:SetWidth(width) end)
+        local shieldFill = e.shield:GetStatusBarTexture()
+        -- fill full = safe: normal heals inside either fill, the fast heal after both
+        e.clip:SetPoint("TOPLEFT", fill, "TOPRIGHT")
+        e.clip:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT")
+        e.inner = ClipFrame(e.clip)
+        e.inner:SetPoint("TOPLEFT", shieldFill, "TOPRIGHT")
+        e.inner:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT")
+        e.label = Label(e.inner, holder, area)
         button.emergencyGate = e
         button.normalClip = ClipFrame(holder)
-        button.normalClip:SetPoint("TOPLEFT", fill, "TOPRIGHT")
-        button.normalClip:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT")
+        button.normalClip:SetPoint("TOPLEFT", area, "TOPLEFT")
+        button.normalClip:SetPoint("BOTTOMRIGHT", shieldFill, "BOTTOMRIGHT")
     end
 
     local thresholds = KH.Advisor.Thresholds(options, S().advisor)
+    button.gateHot = nil    -- UpdateGates sets the ranges
     for i, rung in ipairs(thresholds) do
         local gate = Gate(button, i)
         gate.option = rung.option
-        gate.bar:SetMinMaxValues(rung.threshold - 1, rung.threshold)
+        gate.threshold = rung.threshold
         gate.clip:ClearAllPoints()
         if i < #thresholds then
             gate.clip:SetPoint("TOPLEFT", Gate(button, i + 1).bar:GetStatusBarTexture(), "TOPRIGHT")
@@ -416,22 +458,64 @@ local function BuildGates(button)
     for i = #thresholds + 1, #button.gates do button.gates[i].clip:Hide() end
 
     local e = button.emergencyGate
-    e.on = options.emergency ~= nil and (S().advisor.emergency or 0) > 0
+    local a = S().advisor
+    e.on = options.emergency ~= nil and (a.emergencyByTime or (a.emergency or 0) > 0)
     e.clip:SetShown(e.on)
     if e.on then SetLabel(e.label, options.emergency) end
     if emergencyCurveVersion ~= version then
         emergencyCurveVersion = version
-        emergencyCurve = e.on and KH.Advisor.Curve({ lo = 0, hi = S().advisor.emergency }) or nil
+        -- 1 (safe) from the emergency line up, 0 below it
+        emergencyCurve = (a.emergency or 0) > 0 and KH.Advisor.Curve({ lo = a.emergency, hi = 2 }) or nil
     end
+end
+
+-- the emergency gate: full (safe) or empty (fast heal). A shield on them buys time: the damage
+-- has to get through it first. Readable, it simply lowers the line; hidden, the shield gate is
+-- full when the shield alone covers the line (safe when either health or shield does).
+local function UpdateEmergency(button, unit, settings)
+    local e = button.emergencyGate
+    e.shield:SetMinMaxValues(0, 1)
+    e.shield:SetValue(0)
+    if e.on and KH.Advisor.ByTime(settings) then
+        local line = KH.Advisor.DangerLine(options, KH.Tracker.DamagePerSecond(unit), settings)
+        if line > 0 and settings.countShields and KH.API.absorbs then
+            local absorbs = UnitGetTotalAbsorbs(unit)
+            if KH.Readable(absorbs) then
+                line = line - (KH.Num(absorbs) or 0)
+            else
+                e.shield:SetMinMaxValues(line - 1, line)
+                e.shield:SetValue(absorbs)
+            end
+        end
+        if line > 0 then
+            e.bar:SetMinMaxValues(line - 1, line)
+            e.bar:SetValue(UnitHealth(unit))
+            return
+        end
+    elseif e.on and emergencyCurve then
+        e.bar:SetMinMaxValues(0, 1)
+        e.bar:SetValue(UnitHealthPercent(unit, settings.predicted, emergencyCurve))
+        return
+    end
+    e.bar:SetMinMaxValues(0, 1)
+    e.bar:SetValue(1)
 end
 
 local function UpdateGates(button, unit, settings)
     BuildGates(button)
+    -- her HoTs on them: every heal needs that much more missing health to fit
+    local hot = settings.countHots and KH.Round(KH.Tracker.HotRemaining(unit)) or 0
+    if hot ~= button.gateHot then
+        button.gateHot = hot
+        for i = 1, button.gateCount do
+            local gate = button.gates[i]
+            gate.bar:SetMinMaxValues(gate.threshold + hot - 1, gate.threshold + hot)
+        end
+    end
     -- missing health, minus heals already on the way when that setting is on
     local missing = UnitHealthMissing(unit, settings.predicted)
     for i = 1, button.gateCount do button.gates[i].bar:SetValue(missing) end
-    local e = button.emergencyGate
-    e.bar:SetValue(e.on and emergencyCurve and UnitHealthPercent(unit, settings.predicted, emergencyCurve) or 0)
+    UpdateEmergency(button, unit, settings)
 end
 
 local function AdviceSlot(button, i)
@@ -452,19 +536,21 @@ local function EnsurePlan(button, maxHealth)
     end
 end
 
--- the health fraction Lua may use, or nil when health is hidden
-local function ReadableFraction(unit, predicted)
+-- the health fraction Lua may use, or nil when health is hidden (her HoTs count as healed)
+local function ReadableFraction(unit, settings)
     local hp, max = KH.Num(UnitHealth(unit)), KH.Num(UnitHealthMax(unit))
     if not hp or not max or max <= 0 then return nil end
-    if predicted and UnitGetIncomingHeals then
+    if settings.predicted and UnitGetIncomingHeals then
         hp = hp + (KH.Num(UnitGetIncomingHeals(unit)) or 0)
     end
+    if settings.countHots then hp = hp + KH.Tracker.HotRemaining(unit) end
     return math.min(1, hp / max)
 end
 
+-- (the Lua path keeps the emergency health % line; the danger line needs the gates)
 local function UpdatePlan(button, unit, settings)
     EnsurePlan(button, button.maxHealth)
-    local fraction = ReadableFraction(unit, settings.predicted)
+    local fraction = ReadableFraction(unit, settings)
     local chosen = fraction and KH.Advisor.Choose(button.plan, fraction)
     for i, slot in ipairs(button.advice) do
         local band = button.plan[i]
@@ -516,6 +602,7 @@ function Frames.UpdateHealth(button)
 
     Frames.UpdateHealthText(button, max, hp)
     ShowIf(button.dead, UnitIsDeadOrGhost(unit))
+    Frames.UpdateShield(button)
     Frames.UpdateIncoming(button)
 end
 
@@ -562,6 +649,27 @@ function Frames.UpdateHealthText(button, max, hp)
     end
 end
 
+-- pixels the shield bar takes from the top of every frame (0 when it's off)
+function Frames.ShieldSpace()
+    local f = S().frames
+    if not (f.showShields and KH.API.absorbs and f.shieldHeight > 0) then return 0 end
+    return f.shieldHeight + 1
+end
+
+-- the gold shield bar (the game's own total of damage shields on them, hidden or not)
+function Frames.UpdateShield(button)
+    local unit = button.unit
+    if not unit then return end
+    local show = Frames.ShieldSpace() > 0
+    button.shield:SetShown(show)
+    if not show then return end
+    button.shield:SetHeight(S().frames.shieldHeight)
+    local amount = UnitGetTotalAbsorbs(unit)
+    if KH.Readable(amount) and amount == nil then amount = 0 end
+    button.shield:SetMinMaxValues(0, KH.Spells.BiggestShield() or UnitHealthMax(unit))
+    button.shield:SetValue(amount)
+end
+
 -- the incoming-heal bar, then the advice (which counts incoming heals too)
 function Frames.UpdateIncoming(button)
     local unit = button.unit
@@ -585,6 +693,7 @@ function Frames.UpdatePower(button)
     local ptype = KH.Num(UnitPowerType(unit))
     local show = f.showPower ~= "none" and f.powerHeight > 0 and (f.showPower == "all" or not ptype or ptype == 0)
     button.mana:SetShown(show)
+    button.health:SetPoint("TOPLEFT", 1, -1 - Frames.ShieldSpace())
     button.health:SetPoint("BOTTOMRIGHT", -1, show and (f.powerHeight + 1) or 1)
     if show then
         button.mana:SetHeight(f.powerHeight)
@@ -720,6 +829,12 @@ local function Setup(button)
     incomingClip:SetAllPoints(health)
     incomingClip:SetClipsChildren(true)
     incomingClip:SetFrameLevel(health:GetFrameLevel() + 1)
+    -- heals on the way (hers while casting, and other healers'): a faint bar that starts where
+    -- the health ends, as wide as the health bar so both use the same scale, cut at the edge
+    local incomingClip = CreateFrame("Frame", nil, content)
+    incomingClip:SetAllPoints(health)
+    incomingClip:SetClipsChildren(true)
+    incomingClip:SetFrameLevel(health:GetFrameLevel() + 1)
     local incoming = CreateFrame("StatusBar", nil, incomingClip)
     incoming:SetStatusBarTexture(BAR_TEXTURE)
     incoming:SetStatusBarColor(0.4, 1, 0.5, 0.45)
@@ -730,6 +845,20 @@ local function Setup(button)
     health:HookScript("OnSizeChanged", function(_, width) incoming:SetWidth(width) end)
     button.incomingClip = incomingClip
     button.incoming = incoming
+
+    -- shields (Power Word: Shield): a gold bar across the top of the frame, the way the power bar
+    -- runs along the bottom. Its space is kept whether or not there's a shield (UpdatePower moves
+    -- the health bar under it), so nothing moves when a shield comes or goes and it covers
+    -- nothing. Full = her biggest shield (else their max health).
+    local shield = CreateFrame("StatusBar", nil, content)
+    shield:SetStatusBarTexture(BAR_TEXTURE)
+    shield:SetStatusBarColor(1, 0.82, 0.25, 1)
+    shield:SetPoint("TOPLEFT", 1, -1)
+    shield:SetPoint("TOPRIGHT", -1, -1)
+    shield:SetHeight(5)
+    shield:SetMinMaxValues(0, 1)
+    shield:SetValue(0)
+    button.shield = shield
 
     local mana = CreateFrame("StatusBar", nil, content)
     mana:SetStatusBarTexture(BAR_TEXTURE)
@@ -746,7 +875,7 @@ local function Setup(button)
     button.overlay = overlay
 
     button.name = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    button.name:SetPoint("TOPLEFT", 4, -3)
+    button.name:SetPoint("TOPLEFT", health, "TOPLEFT", 3, -2)
     button.name:SetWidth(64)
     button.name:SetJustifyH("LEFT")
     if button.name.SetWordWrap then button.name:SetWordWrap(false) end
@@ -798,7 +927,7 @@ local function Setup(button)
 
     -- the advice ("HW3" / "S-L") on the right
     local holder = CreateFrame("Frame", nil, overlay)
-    holder:SetPoint("TOPRIGHT", -3, -3)
+    holder:SetPoint("TOPRIGHT", health, "TOPRIGHT", -2, -2)
     holder:SetPoint("BOTTOMRIGHT", health, "BOTTOMRIGHT", -2, 2)
     holder:SetWidth(44)
     button.adviceHolder = holder
@@ -812,6 +941,8 @@ local function Setup(button)
     end)
     button:HookScript("OnShow", function(self) KH.Safe(function() Remap(); Frames.UpdateAll(self) end) end)
     button:HookScript("OnHide", function() KH.Safe(Remap) end)
+    -- the HoT tracker needs to know who she clicked (the game may hide the cast's target name)
+    button:HookScript("PreClick", function(self) KH.Safe(KH.Tracker.Clicked, self.unit) end)
     button:HookScript("OnEnter", function(self) KH.Safe(Frames.ShowTooltip, self) end)
     button:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
@@ -1027,6 +1158,11 @@ end
 KH:RegisterEvent("UNIT_HEALTH", ForUnit(Frames.UpdateHealth))
 KH:RegisterEvent("UNIT_MAXHEALTH", ForUnit(Frames.UpdateHealth))
 KH:RegisterEvent("UNIT_HEAL_PREDICTION", ForUnit(Frames.UpdateIncoming))
+-- a shield put on, hit or gone: the bar, then the advice (a shield buys time)
+KH:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED", ForUnit(function(b)
+    Frames.UpdateShield(b)
+    Frames.UpdateAdvice(b)
+end))
 KH:RegisterEvent("UNIT_POWER_UPDATE", ForUnit(Frames.UpdatePower))
 KH:RegisterEvent("UNIT_MAXPOWER", ForUnit(Frames.UpdatePower))
 KH:RegisterEvent("UNIT_DISPLAYPOWER", ForUnit(Frames.UpdatePower))
@@ -1049,12 +1185,26 @@ KH:RegisterEvent("PLAYER_REGEN_ENABLED", function()
     for _, b in pairs(byUnit) do Frames.UpdateAll(b) end
 end)
 
--- range is polled: there is no event for it
+-- a HoT she just cast: the advice changes at once
+KH:On("TRACKER_UPDATED", function()
+    for _, b in pairs(byUnit) do Frames.UpdateAdvice(b) end
+end)
+
+-- range is polled: there is no event for it. The advice too while HoTs tick down or damage
+-- comes in (the danger line moves without a health event).
 local ticker = CreateFrame("Frame")
-local elapsed = 0
+local elapsed, adviceElapsed, wasBusy = 0, 0, false
 ticker:SetScript("OnUpdate", function(_, dt)
-    elapsed = elapsed + dt
+    elapsed, adviceElapsed = elapsed + dt, adviceElapsed + dt
     if elapsed < 0.25 then return end
     elapsed = 0
     for _, b in pairs(byUnit) do KH.Safe(Frames.UpdateRange, b) end
+    if adviceElapsed < 0.5 then return end
+    adviceElapsed = 0
+    -- once more after the last HoT or hit runs out
+    local busy = KH.Tracker.Busy()
+    if busy or wasBusy then
+        for _, b in pairs(byUnit) do KH.Safe(Frames.UpdateAdvice, b) end
+    end
+    wasBusy = busy
 end)

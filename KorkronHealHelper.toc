@@ -2,7 +2,7 @@
 ## Title: |cffc41f3bKor'kron|r Heal Helper
 ## Notes: Healer frames with click-casting, a "which rank?" helper for mana-efficient healing, and cleanse alerts. Type /khh to open.
 ## Author: Grimscar
-## Version: 0.6.1
+## Version: 0.7.0
 ## SavedVariables: KorkronHealHelperDB
 ## SavedVariablesPerCharacter: KorkronHealHelperCharDB
 ## IconTexture: Interface\Icons\Spell_Nature_MagicImmunity
@@ -13,6 +13,7 @@ Core\DB.lua
 Core\ClassData.lua
 Core\Spells.lua
 Core\Measure.lua
+Core\Tracker.lua
 Core\Advisor.lua
 Core\Bindings.lua
 Core\Probe.lua
@@ -20,6 +21,7 @@ Core\Tooltip.lua
 
 UI\Widgets.lua
 UI\UnitFrames.lua
+UI\Nameplates.lua
 UI\MainWindow.lua
 UI\EditMode.lua
 UI\Minimap.lua

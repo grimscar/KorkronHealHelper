@@ -169,8 +169,14 @@ local function BuildInfo(name, def, rank, id, subName)
     info.castName = CastName(name, rank, subName, def.ranks and #def.ranks or 1)
     info.level = rdef.level
 
-    local lo, hi = Spells.ParseAmount(Description(id), def.kind)
+    local text = Description(id)
+    local lo, hi = Spells.ParseAmount(text, def.kind)
     info.parsed = lo ~= nil
+    -- Regrowth: "... for 93 to 107 and another 98 over 21 sec."
+    if def.hot and text then
+        local rest = string.match(text, "for %d[%d,%.]* to %d[%d,%.]*(.*)")
+        info.hotAmount = rest and Spells.ParseAmount(rest, "hot")
+    end
     info.min, info.max = lo or rdef.min, hi or rdef.max
     info.cost = ManaCost(id) or rdef.cost
     info.castTime = CastTime(id) or rdef.cast or def.cast
@@ -337,7 +343,8 @@ function Spells.UnknownHealingSpells()
         local name = entry.name or SpellName(entry.id)
         if name and not knownNames[name] and not seen[name] then
             local text = Description(entry.id)
-            local lower = text and string.lower(text)
+            -- "Health by 180" (Bear Form) isn't healing
+            local lower = text and string.gsub(string.lower(text), "health", "")
             if lower and (lower:find("heal") or lower:find("absorb") or lower:find("restor")) then
                 seen[name] = true
                 out[#out + 1] = { id = entry.id, name = name, text = text }
@@ -359,6 +366,19 @@ function Spells.AllHealRanks()
         return a.rank < b.rank
     end)
     return out
+end
+
+-- the biggest shield she can cast (a full shield bar), nil when she has none
+function Spells.BiggestShield()
+    local most
+    for _, entry in pairs(Spells.heals) do
+        if entry.def.kind == "shield" then
+            for _, info in pairs(entry.ranks) do
+                if info.amount and (not most or info.amount > most) then most = info.amount end
+            end
+        end
+    end
+    return most
 end
 
 function Spells.Short(info)

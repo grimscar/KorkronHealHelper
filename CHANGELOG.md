@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0
+
+- **Shields on the frames.** A gold bar across the top of each frame shows the shield left on someone (Power Word: Shield, yours or another priest's), draining as it's hit. The health bar sits just under it and keeps its place whether or not there's a shield, so nothing is covered and nothing jumps. Its height is on the Layout tab ("Shield bar height", 0 hides it). Turn off with "Show shields".
+- **Shield bar under friendly nameplates:** a small gold bar with the shield's number. Needs friendly nameplates on (Shift+V). The game doesn't allow it inside dungeons and raids. Turn off with "Shield bar under nameplates".
+- **Shields buy time.** Damage has to break a shield before someone loses health, so the fast heal is suggested later while they're shielded. Turn off with "Shields buy time".
+- **Fixed: heals and hits on other players nearby were counted.** The game also reports combat text for every nameplate around you. Only you, your group and your target count now, so another player's heal can't be learned as yours. The game check report's numbers now mean just those.
+- **Your buffs and heals over time moved to the bottom of each frame**, just left of the heal advice, so they no longer cover it. Buffs lasting over 5 minutes (Mark of the Wild, Fortitude) are hidden; change the limit in Settings ("Hide my buffs longer than").
+- **Your heals over time count in the advice.** After your Rejuvenation, Renew or Regrowth lands on someone, the healing still to come counts as done, so you aren't told to cast a heal the HoT would cover. Turn off with "Count my heals over time".
+- **The fast heal is only suggested when there's no time for the slow one.** The addon watches how fast each person is losing health. Your fast, expensive heal (Flash Heal, Lesser Healing Wave, Regrowth) is suggested only when they'd die before your slower, cheaper heal could finish casting. A tank knocked low by one big hit who then takes little damage gets the cheap heal. When you're being hit yourself, the addon also counts how much longer your casts really take (pushback), learned from your recent casts. "Safety margin" in Settings adds extra seconds. When the game hides damage numbers, the old "Emergency below 35%" rule is used.
+- **Fixed: a heal-over-time tick could be learned as a direct heal.** Rejuvenation or Renew ticking right as your Healing Touch or Heal landed could have been recorded instead of the real heal. Heal numbers far away from the spell's tooltip are now ignored. The game check report counts them ("not matching the tooltip").
+- Heal-over-time spells (Rejuvenation, Renew) keep using their tooltip number. The game doesn't say which spell a tick came from, so their Seen column stays empty.
+- The game check report no longer lists Bear Form as a healing spell, and reads talents the way Forever provides them.
+
 ## 0.6.1
 
 - Moved to the official Forever release folder.

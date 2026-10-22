@@ -32,6 +32,7 @@ local DEFAULTS = {
         spacingX = 4, spacingY = 3,  -- gap between frames
         groupsAs = "columns",    -- each group a "columns" or a "rows"
         powerHeight = 4,         -- mana/rage/energy bar height (0 hides it)
+        shieldHeight = 5,        -- shield bar height across the top (0 hides it)
         showPower = "all",       -- "all", "mana" (only for mana users) or "none"
         healthText = "missing",  -- "missing", "percent", "current", "both" or "none"
         powerText = "none",      -- "current", "percent", "both" or "none"
@@ -40,17 +41,24 @@ local DEFAULTS = {
         classColors = true,   -- health bars in class colours (else green)
         rangeAlpha = 0.4,     -- how faded someone out of range is
         showIncoming = true,  -- faint bar for heals on the way
+        showShields = true,   -- gold bar for damage shields (Power Word: Shield)
+        plateShields = true,  -- a shield bar with its number under friendly nameplates
     },
     advisor = {
         enabled = true,
         overheal = 0.10,      -- a heal may overheal by this much and still be the pick (0.10 = 10%)
-        emergency = 0.35,     -- below this health, suggest the fast heal instead
+        emergency = 0.35,     -- below this health, suggest the fast heal instead (when damage is hidden)
+        emergencyByTime = true, -- fast heal only when they'd reach 0 before the slow heal lands
+        safety = 1.0,         -- seconds added to the slow heal's cast time for that
         predicted = true,     -- count heals already on the way
+        countHots = true,     -- count the healing her HoTs on them will still do
+        countShields = true,  -- a shield on them buys time before the fast heal is needed
     },
     cleanse = {
         enabled = true,
         maxIcons = 3,
         showMine = true,      -- also show your own buffs and heals over time on each frame
+        mineMaxMinutes = 5,   -- ...but not ones lasting longer than this (0 = show all)
     },
     -- how a click casts: "macro" = /cast [@unit] Healing Wave(Rank 3) then /stopspelltarget (so a
     -- cast that can't land never waits on the cursor); "name" or "id" = the plain secure spell click

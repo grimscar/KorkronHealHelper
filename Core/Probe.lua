@@ -37,7 +37,7 @@ local function UnitLines(lines, unit)
     lines[#lines + 1] = "  name " .. Try(UnitName, unit) .. ", class " .. Describe(pcall(function() return select(2, UnitClass(unit)) end))
     lines[#lines + 1] = "  health " .. Try(UnitHealth, unit) .. ", max " .. Try(UnitHealthMax, unit)
     lines[#lines + 1] = "  missing " .. Try(UnitHealthMissing, unit) .. ", percent " .. Try(UnitHealthPercent, unit)
-    lines[#lines + 1] = "  incoming heals " .. Try(UnitGetIncomingHeals, unit)
+    lines[#lines + 1] = "  incoming heals " .. Try(UnitGetIncomingHeals, unit) .. ", shield " .. Try(UnitGetTotalAbsorbs, unit)
     lines[#lines + 1] = "  mana " .. Try(UnitPower, unit, 0) .. ", in range " .. Try(UnitInRange, unit)
     lines[#lines + 1] = "  dead " .. Try(UnitIsDeadOrGhost, unit) .. ", online " .. Try(UnitIsConnected, unit)
     lines[#lines + 1] = "  guid " .. Try(UnitGUID, unit)
@@ -87,9 +87,25 @@ function Probe.Collect()
     local m = KH.Measure.stats
     lines[#lines + 1] = string.format("heal results this session: %d learned, %d hidden, %d crits skipped", m.seen, m.hidden, m.crits)
     lines[#lines + 1] = string.format("  measuring: %d direct heal casts (%d more with hidden spell ID), %d combat-text events"
-        .. " (%d with hidden type), %d heals (%d too late)%s%s", m.casts, m.castHidden, m.events, m.actionHidden,
-        m.heals, m.late, KH.Measure.castEvent and "" or ", cast event refused",
+        .. " (%d with hidden type), %d heals (%d too late, %d not matching the tooltip)%s%s", m.casts, m.castHidden,
+        m.events, m.actionHidden, m.heals, m.late, m.odd, KH.Measure.castEvent and "" or ", cast event refused",
         KH.Measure.combatEvent and "" or ", UNIT_COMBAT refused")
+
+    local t = KH.Tracker.stats
+    lines[#lines + 1] = string.format("tracking: emergency by %s, %d hits readable, %d hidden; your HoTs placed %d, not placed %d%s",
+        KH.Advisor.ByTime(KH.db.settings.advisor) and "time" or "health %", t.damage, t.hiddenDamage, t.hots, t.hotsUnplaced,
+        t.lastUnplaced and (" (last: " .. t.lastUnplaced .. ")") or "")
+    local n, avg, most = KH.Tracker.DelayStats()
+    lines[#lines + 1] = string.format("  your casts: %d timed, %d pushbacks; last %d slowed by hits: %.1fs longer on average (most %.1fs)",
+        t.timed, t.pushbacks, n, avg, most)
+    local kinds = {}
+    for kind, count in pairs(t.kinds) do kinds[#kinds + 1] = kind .. " " .. count end
+    table.sort(kinds)
+    lines[#lines + 1] = "  combat text (you, group, target): " .. (#kinds > 0 and table.concat(kinds, ", ") or "none")
+    local p = KH.Plates.stats
+    lines[#lines + 1] = string.format("shields: on frames %s, nameplate bars %s (%d now, %d made, %d refused by the game)",
+        Yes(KH.API.absorbs and KH.db.settings.frames.showShields), Yes(KH.API.absorbs and KH.db.settings.frames.plateShields),
+        KH.Plates.Count(), p.added, p.forbidden)
 
     UnitLines(lines, "player")
     local other = IsInRaid() and "raid2" or "party1"
@@ -126,19 +142,92 @@ function Probe.Collect()
     return lines
 end
 
--- points per talent tree: "Discipline 5, Holy 21, Shadow 0" (Classic and newer return orders)
+-- one talent tree's name and points: Forever answers through C_SpecializationInfo (a table),
+-- older clients through the globals (Classic and Cata return orders)
+local function TalentTab(i)
+    local spec = C_SpecializationInfo
+    if spec and spec.GetTalentTabInfo then
+        local ok, info = pcall(spec.GetTalentTabInfo, i)
+        if ok and type(info) == "table" then return info.name, info.pointsSpent end
+        return nil
+    end
+    local r = { pcall(GetTalentTabInfo, i) }
+    if not r[1] then return nil end
+    if type(r[2]) == "string" then return r[2], r[4] end
+    return r[3], r[6]
+end
+
+-- the talent window's trees, left to right
+local TREES = {
+    DRUID = { "Balance", "Feral Combat", "Restoration" },
+    PALADIN = { "Holy", "Protection", "Retribution" },
+    PRIEST = { "Discipline", "Holy", "Shadow" },
+    SHAMAN = { "Elemental", "Enhancement", "Restoration" },
+}
+
+-- Forever 1.60 has no talent tabs: its talent window is one Traits tree with every talent as a
+-- node. The three classic trees are three groups of node columns (posX), split where the gap
+-- between neighbouring columns is widest. nil when the game won't say.
+function Probe.TraitTalents()
+    local traits, classTalents = C_Traits, C_ClassTalents
+    if not (traits and classTalents and classTalents.GetActiveConfigID and traits.GetConfigInfo
+        and traits.GetTreeNodes and traits.GetNodeInfo) then return nil, "no Traits API" end
+    local ok, configID = pcall(classTalents.GetActiveConfigID)
+    configID = ok and KH.Num(configID)
+    if not configID then return nil, "no active talent config" end
+    local okInfo, config = pcall(traits.GetConfigInfo, configID)
+    local treeID = okInfo and type(config) == "table" and type(config.treeIDs) == "table" and KH.Num(config.treeIDs[1])
+    if not treeID then return nil, "no talent tree in the config" end
+    local okNodes, nodes = pcall(traits.GetTreeNodes, treeID)
+    if not okNodes or type(nodes) ~= "table" then return nil, "tree nodes refused" end
+    local points, columns = {}, {}
+    for _, nodeID in ipairs(nodes) do
+        local okNode, node = pcall(traits.GetNodeInfo, configID, nodeID)
+        local x = okNode and type(node) == "table" and KH.Num(node.posX)
+        if x then
+            if not points[x] then points[x] = 0; columns[#columns + 1] = x end
+            points[x] = points[x] + (KH.Num(node.ranksPurchased) or 0)
+        end
+    end
+    if #columns < 3 then return nil, #columns .. " talent columns" end
+    table.sort(columns)
+    -- the two widest gaps between columns separate the three trees
+    local gaps = {}
+    for i = 2, #columns do gaps[#gaps + 1] = { at = i, size = columns[i] - columns[i - 1] } end
+    table.sort(gaps, function(a, b) return a.size > b.size end)
+    local cut1, cut2 = math.min(gaps[1].at, gaps[2].at), math.max(gaps[1].at, gaps[2].at)
+    local trees = { 0, 0, 0 }
+    for i, x in ipairs(columns) do
+        local tree = i < cut1 and 1 or i < cut2 and 2 or 3
+        trees[tree] = trees[tree] + points[x]
+    end
+    return trees
+end
+
+-- points per talent tree: "Balance 0, Feral Combat 9, Restoration 0"
 function Probe.Talents()
-    if not (GetNumTalentTabs and GetTalentTabInfo) then return "unknown" end
-    local trees = {}
-    for i = 1, (KH.Num(GetNumTalentTabs()) or 0) do
-        local r = { pcall(GetTalentTabInfo, i) }
-        if r[1] then
-            local name, points
-            if type(r[2]) == "string" then name, points = r[2], r[4] else name, points = r[3], r[6] end
+    local spec = C_SpecializationInfo
+    local count = spec and spec.GetNumTalentTabs or GetNumTalentTabs
+    if not count or not ((spec and spec.GetTalentTabInfo) or GetTalentTabInfo) then
+        local trees, why = Probe.TraitTalents()
+        if not trees then return "unknown (no talent tab API, " .. why .. ")" end
+        local names = TREES[KH.Text(select(2, UnitClass("player"))) or ""] or {}
+        for i, n in ipairs(trees) do trees[i] = (names[i] or ("tree " .. i)) .. " " .. n end
+        return table.concat(trees, ", ")
+    end
+    local ok, tabs = pcall(count)
+    tabs = ok and KH.Num(tabs)
+    if not tabs or tabs == 0 then return "unknown (" .. (ok and "the game lists " .. tostring(tabs or "hidden") .. " trees" or "reading the trees failed") .. ")" end
+    local trees, failed = {}, 0
+    for i = 1, tabs do
+        local name, points = TalentTab(i)
+        if name == nil and points == nil then
+            failed = failed + 1
+        else
             trees[#trees + 1] = tostring(KH.Text(name) or ("tree " .. i)) .. " " .. tostring(KH.Num(points) or "?")
         end
     end
-    return #trees > 0 and table.concat(trees, ", ") or "unknown"
+    return #trees > 0 and table.concat(trees, ", ") or ("unknown (" .. tabs .. " trees, " .. failed .. " failed to read)")
 end
 
 function Probe.Name(info)

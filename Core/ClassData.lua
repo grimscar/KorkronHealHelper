@@ -13,6 +13,7 @@
 --             "special" (Forever-only, behaviour not known yet); only direct heals get advice
 --             and are measured
 --   duration  heal over time: seconds
+--   hot       a direct heal with a heal over time after it (Regrowth): the HoT's seconds
 --   role      "efficient" = the advisor picks between these by size; "fast" = the emergency heal
 --   cast      base cast time in seconds (before talents), per rank when it changes with rank
 --   short     abbreviation shown on the frames ("HW" + rank)
@@ -160,7 +161,7 @@ local DRUID = {
     heals = {
         ["Healing Touch"] = { kind = "direct", role = "efficient", short = "HT",
             ranks = Ranks(3.5, { { 5185, 1, 1.5 }, { 5186, 8, 2.0 }, { 5187, 14, 2.5 }, { 5188, 20, 3.0 }, { 5189, 26 }, { 6778, 32 }, { 8903, 38 }, { 9758, 44 }, { 9888, 50 }, { 9889, 56 }, { 25297, 60 } }) },
-        ["Regrowth"] = { kind = "direct", role = "fast", short = "RG",
+        ["Regrowth"] = { kind = "direct", role = "fast", short = "RG", hot = 21,
             ranks = Ranks(2.0, { { 8936, 12 }, { 8938, 18 }, { 8939, 24 }, { 8940, 30 }, { 8941, 36 }, { 9750, 42 }, { 9856, 48 }, { 9857, 54 }, { 9858, 60 } }) },
         ["Rejuvenation"] = { kind = "hot", short = "Rj", duration = 12,
             ranks = Ranks(1.5, { { 774, 4 }, { 1058, 10 }, { 1430, 16 }, { 2090, 22 }, { 2091, 28 }, { 3627, 34 }, { 8910, 40 }, { 9839, 46 }, { 9840, 52 }, { 9841, 58 }, { 25299, 60 } }) },
@@ -200,7 +201,9 @@ local DRUID = {
 local PALADIN = {
     heals = {
         ["Holy Light"] = { kind = "direct", role = "efficient", short = "HL",
-            ranks = Ranks(2.5, { { 635, 1 }, { 639, 6 }, { 647, 14 }, { 1026, 22 }, { 1042, 30 }, { 3472, 38 }, { 10328, 46 }, { 10329, 54 }, { 25292, 60 } }) },
+            -- Forever: Paladins start with only a damage seal; Holy Light 1 comes from the quest
+            -- "Rediscovering the Light" (around level 2), later ranks from the trainer
+            ranks = Ranks(2.5, { { 635, 2 }, { 639, 6 }, { 647, 14 }, { 1026, 22 }, { 1042, 30 }, { 3472, 38 }, { 10328, 46 }, { 10329, 54 }, { 25292, 60 } }) },
         -- the paladin's fast heal (orange advice below the emergency health)
         ["Flash of Light"] = { kind = "direct", role = "fast", short = "FoL",
             ranks = Ranks(1.5, { { 19750, 20 }, { 19939, 26 }, { 19940, 34 }, { 19941, 42 }, { 19942, 50 }, { 19943, 58 } }) },
@@ -243,9 +246,11 @@ ClassData.DISPEL_COLORS = {
     Poison = { 0.00, 0.60, 0.00 },
 }
 
+-- the player's class never changes: remembered once readable (the game may hide it in combat)
+local playerClass
 function ClassData.ForPlayer()
-    local _, classTag = UnitClass("player")
-    return ClassData.classes[classTag], classTag
+    playerClass = playerClass or KH.Text(select(2, UnitClass("player")))
+    return playerClass and ClassData.classes[playerClass], playerClass
 end
 
 -- Classic's rule for how much +healing a direct heal gets: cast time / 3.5 (1.5s to 3.5s),

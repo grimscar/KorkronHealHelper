@@ -3,7 +3,8 @@
 -- On Forever the tooltip doesn't always match the real heal: low ranks heal less than their
 -- tooltip says. So a "HEAL" combat text within half a second of one of her direct heals finishing
 -- is taken as that heal's result. Either can come first: the beta sent the cast first, the
--- release sends the heal first. Critical heals are skipped. When the game hides the
+-- release sends the heal first. Heals far off the tooltip (HoT ticks, other healers) and
+-- critical heals are skipped. When the game hides the
 -- amount nothing is learned (the probe counts those). Results are kept per character and spell
 -- ID, and thrown away when her +healing changes. Once a rank has a few results, Spells uses their
 -- average instead of the tooltip.
@@ -17,7 +18,8 @@ Measure.WINDOW = 0.5     -- seconds between the cast finishing and its heal (eit
 Measure.stats = { seen = 0, hidden = 0, crits = 0,
     -- where results get lost, for the probe: her direct heal casts, casts whose spell ID was
     -- hidden, combat-text events of any kind, ones whose type was hidden, heals, heals too late
-    casts = 0, castHidden = 0, events = 0, actionHidden = 0, heals = 0, late = 0 }
+    -- and heals that landed next to her cast but didn't fit its tooltip (HoT ticks, other healers)
+    casts = 0, castHidden = 0, events = 0, actionHidden = 0, heals = 0, late = 0, odd = 0 }
 
 local pending   -- { id, time } of her last direct heal, waiting for its heal
 local lastHeal  -- { amount, indicator, time } of the last heal, waiting for its cast
@@ -75,6 +77,16 @@ local function Use(id, amount, indicator)
     end
 end
 
+-- false when a readable amount can't be this spell's heal: far below or above its tooltip. A HoT
+-- tick (Rejuvenation, Renew) or someone else's heal landing next to her cast is left out this way.
+local function Fits(id, amount, indicator)
+    if KH.Readable(indicator) and indicator == "CRITICAL" then return true end -- counted, then skipped
+    local value = KH.Num(amount)
+    local info = KH.Spells.byID[id]
+    if not value or not (info and info.parsed and info.min and info.max) then return true end
+    return value >= info.min * 0.5 and value <= info.max * 1.6
+end
+
 Measure.castEvent = KH:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit, _, spellID)
     if unit ~= "player" then return end
     if not KH.Readable(spellID) then
@@ -87,14 +99,16 @@ Measure.castEvent = KH:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit, 
     Measure.stats.casts = Measure.stats.casts + 1
     local heal = lastHeal
     lastHeal = nil
-    if heal and GetTime() - heal.time <= Measure.WINDOW then
+    if heal and GetTime() - heal.time <= Measure.WINDOW and Fits(spellID, heal.amount, heal.indicator) then
         Use(spellID, heal.amount, heal.indicator)
     else
         pending = { id = spellID, time = GetTime() }
     end
 end)
 
-Measure.combatEvent = KH:RegisterEvent("UNIT_COMBAT", function(_, action, indicator, amount)
+Measure.combatEvent = KH:RegisterEvent("UNIT_COMBAT", function(unit, action, indicator, amount)
+    -- (not nameplates: another player's heal nearby could be taken for hers)
+    if not KH.WatchedUnit(unit) then return end
     local stats = Measure.stats
     stats.events = stats.events + 1
     if not KH.Readable(action) then
@@ -104,11 +118,17 @@ Measure.combatEvent = KH:RegisterEvent("UNIT_COMBAT", function(_, action, indica
     if action ~= "HEAL" then return end
     stats.heals = stats.heals + 1
     local cast = pending
-    pending = nil
     if cast and GetTime() - cast.time <= Measure.WINDOW then
+        if not Fits(cast.id, amount, indicator) then
+            -- not her heal: keep waiting for the real one
+            stats.odd = stats.odd + 1
+            return
+        end
+        pending = nil
         Use(cast.id, amount, indicator)
         return
     end
+    pending = nil
     if cast then stats.late = stats.late + 1 end
     -- maybe her cast's event is still to come
     lastHeal = { amount = amount, indicator = indicator, time = GetTime() }

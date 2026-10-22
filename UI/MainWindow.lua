@@ -200,6 +200,11 @@ local function BuildSettings(panel)
     Check(1, "Class coloured health", nil, function() return f().classColors end, function(v) f().classColors = v end)
     Check(1, "Show incoming heals", "A faint green bar after the health: how much the heals being cast on them will bring back, yours and other healers'.",
         function() return f().showIncoming end, function(v) f().showIncoming = v end)
+    Check(1, "Show shields", "A gold bar above the health for damage shields like Power Word: Shield. It drains as the shield is hit. Its height is on the Layout tab.",
+        function() return f().showShields end, function(v) f().showShields = v end)
+    Check(1, "Shield bar under nameplates", "A small gold bar with the shield's number under friendly nameplates. Needs friendly nameplates on (Shift+V). "
+        .. "The game doesn't allow it on friendly nameplates inside dungeons and raids.",
+        function() return f().plateShields end, function(v) f().plateShields = v end)
     Check(1, "Spell tooltips: heal and mana per rank", nil, function() return S().tooltips end, function(v) S().tooltips = v end)
     Check(1, "Game: Auto Self Cast", "The game's own option. When on, a heal clicked on someone out of range lands on you instead. Healers usually turn it off.",
         function() return KH.AutoSelfCast() end, function(v) KH.SetAutoSelfCast(v) end)
@@ -212,6 +217,13 @@ local function BuildSettings(panel)
         function() return a().enabled end, function(v) a().enabled = v end)
     Check(2, "Count heals already on the way", "Don't suggest a heal when someone else's heal is about to land.",
         function() return a().predicted end, function(v) a().predicted = v end)
+    Check(2, "Count my heals over time", "Your Rejuvenation, Renew or Regrowth on someone counts as healing already done, so no heal is suggested that it will cover anyway.",
+        function() return a().countHots end, function(v) a().countHots = v end)
+    Check(2, "Fast heal only when there's no time", "Suggest your fast heal only when they'd die before your slow, cheap heal could finish casting (from how fast they're losing health). "
+        .. "When the game hides damage numbers, the Emergency below % line is used instead.",
+        function() return a().emergencyByTime end, function(v) a().emergencyByTime = v end)
+    Check(2, "Shields buy time", "A shield on someone has to break before they lose health, so the fast heal is suggested later. Needs \"Fast heal only when there's no time\".",
+        function() return a().countShields end, function(v) a().countShields = v end)
     Check(2, "Show debuffs I can remove", "Curses, poisons, diseases or magic your spells can remove, coloured by type.",
         function() return c().enabled end, function(v) c().enabled = v end)
     Check(2, "Show my buffs and heals over time", nil, function() return c().showMine end, function(v) c().showMine = v end)
@@ -222,9 +234,17 @@ local function BuildSettings(panel)
         { "Allowed overheal", "A heal can overheal by this much and still be suggested. Higher = bigger heals sooner.",
             function() return a().overheal end, function(d) a().overheal = math.max(0, math.min(0.5, a().overheal + d * 0.05)) end,
             function(v) return KH.Round(v * 100) .. "%" end },
-        { "Emergency below", "Below this health, suggest your fast heal (Lesser Healing Wave) instead. 0% turns it off.",
+        { "Emergency below", "Below this health, suggest your fast heal instead. Used when \"Fast heal only when there's no time\" is off, "
+            .. "or when the game hides damage numbers. 0% turns it off.",
             function() return a().emergency end, function(d) a().emergency = math.max(0, math.min(0.8, a().emergency + d * 0.05)) end,
             function(v) return KH.Round(v * 100) .. "%" end },
+        { "Safety margin", "Extra seconds on top of your slow heal's cast time before the fast heal is suggested. Higher = fast heal sooner.",
+            function() return a().safety end, function(d) a().safety = math.max(0, math.min(3, a().safety + d * 0.5)) end,
+            function(v) return string.format("%.1f s", v) end },
+        { "Hide my buffs longer than", "Your buffs lasting longer than this (Mark of the Wild, Fortitude) aren't shown on the frames. "
+            .. "0 shows them all. Applies after /reload.",
+            function() return c().mineMaxMinutes end, function(d) c().mineMaxMinutes = math.max(0, math.min(60, c().mineMaxMinutes + d)) end,
+            function(v) return v > 0 and (v .. " min") or "show all" end },
     }
     local y = math.min(y1, y2) - 10
     for _, s in ipairs(steppers) do
@@ -280,7 +300,7 @@ local function Cycle(panel, label, tooltip, choices, get, set)
     return btn
 end
 
-local LAYOUT_DEFAULTS = { "width", "height", "scale", "spacingX", "spacingY", "groupsAs", "powerHeight", "showPower",
+local LAYOUT_DEFAULTS = { "width", "height", "scale", "spacingX", "spacingY", "groupsAs", "powerHeight", "shieldHeight", "showPower",
     "healthText", "powerText", "nameSize", "textSize" }
 
 local function BuildLayout(panel)
@@ -302,6 +322,7 @@ local function BuildLayout(panel)
         { "Gap between frames (across)", nil, Num("spacingX", 1, 0, 30) },
         { "Gap between frames (down)", nil, Num("spacingY", 1, 0, 30) },
         { "Power bar height", "The mana, rage or energy bar under the health. 0 hides it.", Num("powerHeight", 1, 0, 30) },
+        { "Shield bar height", "The gold shield bar above the health (Power Word: Shield). 0 hides it.", Num("shieldHeight", 1, 0, 20) },
         { "Name text size", nil, Num("nameSize", 1, 6, 24) },
         { "Number text size", "The health and power numbers.", Num("textSize", 1, 6, 24) },
     }

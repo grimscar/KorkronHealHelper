@@ -2,7 +2,7 @@
 
 Healer frames for WoW: Forever. They tell you which heal to click and who needs a cleanse. Only the healer needs the addon. Type `/khh` to open it.
 
-Built for Shaman first (tested in game). Priest, Druid and Paladin are prepared from data and need testing: see "For beta testers" below.
+Built for Shaman first. Priest, Druid and Paladin have now been played in game at low levels too. Reports from higher levels and dungeons help a lot: see "For beta testers" below.
 
 ## The healer frames
 
@@ -30,12 +30,13 @@ One frame per group member: you alone (when "Show my frame when solo" is on), yo
 - **Turn off the game's Auto Self Cast.** With it on, a heal clicked on someone out of range lands on *you*. The addon warns you at login while it's on: type `/khh selfcast off`, or untick "Game: Auto Self Cast" in Settings.
 - **Which heal?** The frame's **border turns the colour of the click to use**. The right side shows the heal and click too: `HW3` over `L` means "Healing Wave rank 3, left click". The rule:
   - the biggest of your bound Healing Waves that won't overheal by more than 10%;
-  - below 35% health, your fast heal instead (Right, orange);
+  - your fast heal instead (Right, orange) only when they're losing health so fast they'd die before your slower, cheaper heal could finish casting. A tank knocked to 30% who then takes little damage still gets the cheap heal;
   - no border while they're only scratched: don't heal yet.
 
-  Both numbers can be changed in Settings. Heals already on the way from other healers are counted.
-- **Cleanses.** When someone has a debuff your spells can remove, their health bar is **tinted** in its colour (poison green, disease brown, curse purple, magic blue) and the debuff shows as an icon. Hover the icon to see what it is. Your own buffs show in the top-right corner.
+  Heals already on the way from other healers are counted, and so are **your own heals over time** (Rejuvenation, Renew, Regrowth): no heal is suggested that your HoT will cover anyway. **Shields** (Power Word: Shield) buy time: the damage has to break the shield first, so the fast heal is suggested later. When the game hides damage numbers, the fast heal is suggested below 35% health instead. All of this can be changed in Settings.
+- **Cleanses.** When someone has a debuff your spells can remove, their health bar is **tinted** in its colour (poison green, disease brown, curse purple, magic blue) and the debuff shows as an icon. Hover the icon to see what it is. Your own buffs and heals over time show along the bottom, just left of the heal advice. Long ones (over 5 minutes, like Mark of the Wild) are left out, since those aren't a healer's job in a fight. The limit can be changed in Settings.
 - **Incoming heals:** a faint green bar after the health shows how much the heals being cast on them will bring back (yours and other healers'). If it reaches the end of the bar, the heal will overheal.
+- **Shields:** a gold bar across the top of each frame, above the health, shows how much shield is left on someone (Power Word: Shield, yours or another priest's). It drains as the shield is hit. With friendly nameplates on (Shift+V), a small gold bar with the shield's number also shows under other players' nameplates and follows them around. The game doesn't allow that one inside dungeons and raids, so it works in the open world only.
 - **Missing health** under the name, **DEAD** / **Offline**, a light border on your target, and faded frames for people out of range.
 - Move the frames by dragging the red bar above them. Lock them in Settings or with `/khh lock`.
 

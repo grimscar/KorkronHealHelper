@@ -2,8 +2,11 @@
 --
 -- The choices are the heals bound to clicks (Bindings.lua), so a suggestion always names a
 -- click she has. The rule:
---   * the biggest "efficient" heal that fits the missing health (allowing a little overheal);
---   * below the emergency health line, the fast heal instead;
+--   * the biggest "efficient" heal that fits the missing health (allowing a little overheal),
+--     after the healing her own HoTs on them will still do (Tracker.lua);
+--   * the fast heal instead when they'd reach 0 before her slowest efficient heal could land
+--     (damage per second from Tracker.lua), or, while damage numbers are hidden, below the
+--     emergency health line;
 --   * nothing while the missing health is smaller than the smallest heal.
 --
 -- In combat the game hides health from addons, so Lua can't compare numbers. Instead every
@@ -101,11 +104,30 @@ end
 
 -- missing health at which each efficient heal "fits", smallest first (the frames' gates use
 -- these; they need no maximum health): { { option, threshold }, ... }
-function Advisor.Thresholds(options, settings)
+-- `hot` = healing her HoTs on them will still do: a heal only fits the health they still need.
+function Advisor.Thresholds(options, settings, hot)
     local overheal = 1 + (settings.overheal or 0)
     local out = {}
     for _, option in ipairs(options.normal) do
-        out[#out + 1] = { option = option, threshold = option.amount / overheal }
+        out[#out + 1] = { option = option, threshold = option.amount / overheal + (hot or 0) }
     end
     return out
+end
+
+-- Emergency by time: the fast heal is only worth its mana when they'd reach 0 before her slowest
+-- efficient heal could land. With `dps` damage per second, that's below this much health
+-- (the slowest cast plus a safety margin, times the damage rate). While she's being hit herself,
+-- her casts get pushed back: the delay she has really had lately is added. 0 = no danger.
+function Advisor.DangerLine(options, dps, settings)
+    if not options.emergency or not dps or dps <= 0 then return 0 end
+    local cast = 0
+    for _, option in ipairs(options.normal) do
+        cast = math.max(cast, option.info.castTime or 0)
+    end
+    return dps * (math.max(cast, 1.5) + KH.Tracker.CastDelay() + (settings.safety or 1))
+end
+
+-- true while the emergency follows the danger line (damage numbers readable), else the health %
+function Advisor.ByTime(settings)
+    return settings.emergencyByTime and KH.Tracker.DamageReadable()
 end

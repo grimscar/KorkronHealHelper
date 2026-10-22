@@ -71,7 +71,21 @@ KH.API = {
     auraContainers = (C_XMLUtil and C_XMLUtil.GetTemplateInfo
         and C_XMLUtil.GetTemplateInfo("CustomAuraContainerTemplate")) and true or false,
     healthMissing = UnitHealthMissing ~= nil,
+    -- damage shields (Power Word: Shield) left on someone, as a number the game may hide
+    absorbs = UnitGetTotalAbsorbs ~= nil,
 }
+
+-- units whose combat text matters: her, her group, and her target while it's someone else.
+-- The game also sends it for every nameplate (mobs and other players around her).
+function KH.WatchedUnit(unit)
+    if unit == "player" or (type(unit) == "string" and (unit:match("^party%d$") or unit:match("^raid%d+$"))) then
+        return true
+    end
+    if unit ~= "target" then return false end
+    -- the target is often her or someone in her group: their text already came under that unit
+    if KH.Bool(UnitIsUnit("target", "player")) ~= false then return false end
+    return KH.Bool(UnitInParty("target")) == false and KH.Bool(UnitInRaid("target")) == false
+end
 
 -- errors -------------------------------------------------------------------------------
 -- WoW hides addon errors by default, so a failure would silently stop a feature. Everything
