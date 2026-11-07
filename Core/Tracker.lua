@@ -242,8 +242,10 @@ KH:RegisterEvent("UNIT_COMBAT", function(unit, action, _, amount)
     table.insert(damage[guid], { GetTime(), value })
 end)
 
--- the dead lose their HoTs
+-- the dead lose their HoTs (health events come for every unit, many times a second: nothing to
+-- do while she has no HoTs out)
 KH:RegisterEvent("UNIT_HEALTH", function(unit)
+    if next(hots) == nil then return end
     local guid = GUID(unit)
     if guid and hots[guid] and KH.Bool(UnitIsDeadOrGhost(unit)) then hots[guid] = nil end
 end)

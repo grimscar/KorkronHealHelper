@@ -829,12 +829,6 @@ local function Setup(button)
     incomingClip:SetAllPoints(health)
     incomingClip:SetClipsChildren(true)
     incomingClip:SetFrameLevel(health:GetFrameLevel() + 1)
-    -- heals on the way (hers while casting, and other healers'): a faint bar that starts where
-    -- the health ends, as wide as the health bar so both use the same scale, cut at the edge
-    local incomingClip = CreateFrame("Frame", nil, content)
-    incomingClip:SetAllPoints(health)
-    incomingClip:SetClipsChildren(true)
-    incomingClip:SetFrameLevel(health:GetFrameLevel() + 1)
     local incoming = CreateFrame("StatusBar", nil, incomingClip)
     incoming:SetStatusBarTexture(BAR_TEXTURE)
     incoming:SetStatusBarColor(0.4, 1, 0.5, 0.45)
@@ -1007,6 +1001,8 @@ local function Assign()
     local list = f.enabled and Frames.GroupUnits() or {}
     local col, row, lastGroup = 0, 0, nil
     local cols, rows = 0, 0
+    -- what the clicks do, worked out once: frames whose clicks and person are unchanged are skipped
+    local sig = KH.Bindings.Signature()
     for i, b in ipairs(Frames.buttons) do
         local entry = list[i]
         if entry then
@@ -1021,7 +1017,7 @@ local function Assign()
             b:SetPoint("TOPLEFT", anchor, "TOPLEFT", (x - 1) * (f.width + f.spacingX), -(y - 1) * (f.height + f.spacingY))
             Frames.LayoutElements(b)
             b:SetAttribute("unit", entry.unit)
-            KH.Bindings.ApplyTo(b)
+            KH.Bindings.ApplyTo(b, sig)
             RegisterUnitWatch(b)
         else
             UnregisterUnitWatch(b)
@@ -1194,17 +1190,25 @@ end)
 -- comes in (the danger line moves without a health event).
 local ticker = CreateFrame("Frame")
 local elapsed, adviceElapsed, wasBusy = 0, 0, false
+
+-- fn on every frame, each on its own so one broken frame can't stop the rest. A plain pcall
+-- costs nothing extra (Safe builds a closure per call, many times a second here); a frame that
+-- fails goes through Safe once more so the error is kept with where it happened.
+local function EachFrame(fn)
+    for _, b in pairs(byUnit) do
+        if not pcall(fn, b) then KH.Safe(fn, b) end
+    end
+end
+
 ticker:SetScript("OnUpdate", function(_, dt)
     elapsed, adviceElapsed = elapsed + dt, adviceElapsed + dt
     if elapsed < 0.25 then return end
     elapsed = 0
-    for _, b in pairs(byUnit) do KH.Safe(Frames.UpdateRange, b) end
+    EachFrame(Frames.UpdateRange)
     if adviceElapsed < 0.5 then return end
     adviceElapsed = 0
     -- once more after the last HoT or hit runs out
-    local busy = KH.Tracker.Busy()
-    if busy or wasBusy then
-        for _, b in pairs(byUnit) do KH.Safe(Frames.UpdateAdvice, b) end
-    end
+    local busy = KH.Safe(KH.Tracker.Busy)
+    if busy or wasBusy then EachFrame(Frames.UpdateAdvice) end
     wasBusy = busy
 end)

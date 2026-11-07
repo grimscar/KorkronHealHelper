@@ -72,8 +72,8 @@ function Probe.Collect()
     local secrets = C_Secrets and C_Secrets.ShouldUnitStatsBeSecret
     lines[#lines + 1] = "game says health is hidden now: " .. (secrets and Try(secrets) or "missing")
     local s = KH.db.settings
-    lines[#lines + 1] = string.format("clicks cast by %s, auto self cast %s, click-to-resurrect %s (%s)",
-        tostring(s.castBy), Yes(KH.AutoSelfCast()), Yes(s.smartRes), tostring(KH.Spells.res or "no resurrection known"))
+    lines[#lines + 1] = string.format("clicks cast by %s, auto self cast %s, self cast key %s, click-to-resurrect %s (%s)",
+        tostring(s.castBy), Yes(KH.AutoSelfCast()), tostring(KH.SelfCastKey()), Yes(s.smartRes), tostring(KH.Spells.res or "no resurrection known"))
     local b = KH.Frames.buttons[1]
     if b then
         lines[#lines + 1] = string.format("frame 1: unit %s, shown %s, debuff icons %s, tint %s",
@@ -260,6 +260,7 @@ function Probe.Report()
     -- colour codes don't belong in a copy-paste
     local text = table.concat(lines, "\n")
     text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+    text = string.gsub(text, "|cn[^:|]*:", "") -- Forever's quality colours ("|cnIQ4:")
     text = string.gsub(text, "|r", "")
     return text
 end

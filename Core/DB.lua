@@ -3,6 +3,7 @@
 -- KorkronHealHelperDB (account-wide)
 --   settings        options, see DEFAULTS
 --   probe           last "what does the game hide?" snapshots (Probe.lua): calm, combat
+--   newestSeen      the newest version a guildmate's copy has, until she updates to it (Update.lua)
 --
 -- KorkronHealHelperCharDB (per character: every class has its own spells)
 --   bindings[key]   click-casting: key is the click ("1" = left, "shift-2" = shift + right, ...)
@@ -64,7 +65,7 @@ local DEFAULTS = {
     -- cast that can't land never waits on the cursor); "name" or "id" = the plain secure spell click
     castBy = "macro",
     smartRes = true,          -- a spell click on a dead person casts your resurrection (macro mode)
-    selfCastWarning = true,   -- warn at login while the game's Auto Self Cast is on
+    selfCastWarning = true,   -- warn at login while the game's Auto Self Cast is on, or its Self Cast key catches a spell click
     tab = "SPELLS",
 }
 

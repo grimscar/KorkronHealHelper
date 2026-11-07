@@ -28,6 +28,7 @@ One frame per group member: you alone (when "Show my frame when solo" is on), yo
 
   Any heal click on a **dead** player casts **Ancestral Spirit** instead. A click that can't land (out of range, line of sight) is cancelled instead of waiting on your cursor for the next click.
 - **Turn off the game's Auto Self Cast.** With it on, a heal clicked on someone out of range lands on *you*. The addon warns you at login while it's on: type `/khh selfcast off`, or untick "Game: Auto Self Cast" in Settings.
+- **Turn off the game's Self Cast key** (Alt unless you changed it). While it's held, the game sends your spell to *you*, even when you click someone's frame, so your Alt + Left click (Chain Heal, Power Word: Shield, Rejuvenation, Holy Shock) lands on you. The addon warns you at login when one of your clicks needs that key: type `/khh selfcastkey off`, or untick "Game: Self Cast key" in Settings. To heal yourself, click your own frame.
 - **Which heal?** The frame's **border turns the colour of the click to use**. The right side shows the heal and click too: `HW3` over `L` means "Healing Wave rank 3, left click". The rule:
   - the biggest of your bound Healing Waves that won't overheal by more than 10%;
   - your fast heal instead (Right, orange) only when they're losing health so fast they'd die before your slower, cheaper heal could finish casting. A tank knocked to 30% who then takes little damage still gets the cheap heal;
@@ -67,6 +68,10 @@ The game hides health, names and debuffs from addons during combat. The frames s
 - The "which heal" advice works from how much health someone is missing, which the game passes along even while it's hidden. It works inside dungeons too, where the game hides everyone's maximum health.
 - Click-casting changes made in combat apply when the fight ends.
 
+## New versions
+
+When a guildmate's copy of the addon is newer than yours, a line in chat says so, at each login until you update it in WowUp. For this, the addon sends its version number to guildmates' copies over the game's hidden addon channel, once after you log in (nobody sees it in chat). Tip: in WowUp, turn on auto-update for Kor'kron Heal Helper and new versions install by themselves.
+
 ## For beta testers
 
 Thanks for helping! Play a healer (any level), then:
@@ -88,5 +93,6 @@ Thanks for helping! Play a healer (any level), then:
 - `/khh frames`: show or hide the frames
 - `/khh reset`: move the frames back to their starting spot
 - `/khh selfcast off`: turn off the game's Auto Self Cast
+- `/khh selfcastkey off`: turn off the game's Self Cast key (`on` sets it back to Alt)
 - `/khh probe`: a report of what the game is hiding right now, to send to the addon author
 - `/khh errors`: problems the addon ran into

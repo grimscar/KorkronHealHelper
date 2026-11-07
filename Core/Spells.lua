@@ -368,16 +368,23 @@ function Spells.AllHealRanks()
     return out
 end
 
--- the biggest shield she can cast (a full shield bar), nil when she has none
+-- the biggest shield she can cast (a full shield bar), nil when she has none. Asked on every
+-- shield change of every frame, so it's worked out once per spell scan (Scan makes a new heals
+-- table; amounts only change there).
+local shieldCache = {}
+
 function Spells.BiggestShield()
+    local heals = Spells.heals
+    if shieldCache.heals == heals then return shieldCache.most end
     local most
-    for _, entry in pairs(Spells.heals) do
+    for _, entry in pairs(heals) do
         if entry.def.kind == "shield" then
             for _, info in pairs(entry.ranks) do
                 if info.amount and (not most or info.amount > most) then most = info.amount end
             end
         end
     end
+    shieldCache.heals, shieldCache.most = heals, most
     return most
 end
 

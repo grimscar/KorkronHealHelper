@@ -208,10 +208,9 @@ local function BuildSettings(panel)
     Check(1, "Spell tooltips: heal and mana per rank", nil, function() return S().tooltips end, function(v) S().tooltips = v end)
     Check(1, "Game: Auto Self Cast", "The game's own option. When on, a heal clicked on someone out of range lands on you instead. Healers usually turn it off.",
         function() return KH.AutoSelfCast() end, function(v) KH.SetAutoSelfCast(v) end)
-    Check(1, "Minimap button", nil, function() return not S().minimap.hide end, function(v)
-        S().minimap.hide = not v
-        UI.MinimapButton:Update()
-    end)
+    Check(1, "Game: Self Cast key", "The game's own option (Alt unless you changed it). While it's held, your spells go to you, even when you click someone's frame, "
+        .. "so your Alt clicks heal you instead. Untick to turn the key off; to heal yourself, click your own frame. Ticking sets it back to Alt.",
+        function() return KH.SelfCastKey() ~= "NONE" end, function(v) KH.SetSelfCastKey(v and "ALT" or "NONE") end)
 
     Check(2, "Suggest which heal to click", "Shows the heal that fits each person's missing health, e.g. HW3 over S-L = Shift + Left click.",
         function() return a().enabled end, function(v) a().enabled = v end)
@@ -229,6 +228,10 @@ local function BuildSettings(panel)
     Check(2, "Show my buffs and heals over time", nil, function() return c().showMine end, function(v) c().showMine = v end)
     Check(2, "Click a dead player to resurrect", "Any heal click on a dead frame casts your resurrection (Ancestral Spirit) instead. Needs Cast by: macro.",
         function() return S().smartRes end, function(v) S().smartRes = v end)
+    Check(2, "Minimap button", nil, function() return not S().minimap.hide end, function(v)
+        S().minimap.hide = not v
+        UI.MinimapButton:Update()
+    end)
 
     local steppers = {
         { "Allowed overheal", "A heal can overheal by this much and still be suggested. Higher = bigger heals sooner.",

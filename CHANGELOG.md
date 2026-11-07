@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1
+
+- **Tells you when there's a new version.** When a guildmate's copy of the addon is newer than yours, a line in chat says so, at each login until you update it in WowUp. The addon sends its version to guildmates' copies over the game's hidden addon channel, once after you log in. This version is the first that does this, so the alert starts working from the next version after it.
+- **Alt clicks landed on you.** The game's Self Cast key (Alt unless you changed it) sends any spell cast while it's held to you, even one clicked on someone's frame, so Alt + Left (Power Word: Shield, Rejuvenation, Holy Shock, Chain Heal) went to you instead of the person you clicked. The addon now warns at login when one of your clicks needs that key. Type `/khh selfcastkey off`, or untick "Game: Self Cast key" in Settings, to turn the key off. To heal yourself, click your own frame. The "Minimap button" checkbox moved to the right-hand column to make room.
+- **Lighter on the game.** Your clicks are only set up again on the frames when they actually change (a new rank, a changed click or setting), not every time the group changes, a setting is saved or the frames are resized in edit mode. The range and advice checks, shield bars and health updates also do less work each time.
+- **Sturdier:** a problem with one frame no longer stops the others from updating, and the "something went wrong" notice shows once instead of after every error (again after `/khh errors clear`).
+- The game check report (`/khh probe`) no longer leaves colour codes in the text you copy.
+
 ## 0.7.0
 
 - **Shields on the frames.** A gold bar across the top of each frame shows the shield left on someone (Power Word: Shield, yours or another priest's), draining as it's hit. The health bar sits just under it and keeps its place whether or not there's a shield, so nothing is covered and nothing jumps. Its height is on the Layout tab ("Shield bar height", 0 hides it). Turn off with "Show shields".

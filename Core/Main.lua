@@ -22,6 +22,12 @@ KH:RegisterEvent("PLAYER_LOGIN", function()
             KH:Print("the game's |cffffd100Auto Self Cast|r is on: a heal clicked on someone out of range lands on you instead. "
                 .. "Type |cffffd100/khh selfcast off|r to turn it off (or untick it in /khh Settings).")
         end
+        local clashes = KH.Bindings.SelfCastClashes()
+        if KH.db.settings.selfCastWarning and #clashes > 0 then
+            KH:Print("the game's |cffffd100Self Cast key|r is %s, so these clicks land on |cffffd100you|r instead of the person you click: %s. "
+                .. "Type |cffffd100/khh selfcastkey off|r to turn the key off (or untick it in /khh Settings).",
+                KH.SelfCastKey(), table.concat(clashes, ", "))
+        end
     end)
 end)
 

@@ -119,6 +119,21 @@ function Bindings.Resolved()
     return out
 end
 
+-- spell clicks that need the game's Self Cast key held down, so the game sends them to her instead
+-- of the person clicked: { "Alt + Left: Power Word: Shield", ... }
+function Bindings.SelfCastClashes()
+    local out = {}
+    local key = KH.SelfCastKey()
+    if key == "NONE" then return out end
+    local prefix = string.lower(key) .. "-"
+    for _, r in ipairs(Bindings.Resolved()) do
+        if r.info and string.sub(r.key, 1, #prefix) == prefix then
+            out[#out + 1] = r.label .. ": " .. r.info.name
+        end
+    end
+    return out
+end
+
 -- "shift-2" -> "shift-", "2"
 local function SplitKey(key)
     local mod, button = string.match(key, "^(.-)(%d)$")
@@ -166,11 +181,37 @@ function Bindings.Attributes(unit)
     return attrs
 end
 
--- out of combat only (protected frame)
-function Bindings.ApplyTo(button)
-    for _, a in ipairs(Bindings.Attributes(button:GetAttribute("unit"))) do
+-- everything Attributes() depends on apart from the unit, as one string: how spells are cast,
+-- smart resurrect, and what each click does (its action, or the spell rank it resolves to)
+function Bindings.Signature()
+    local saved = Bindings.Get()
+    local s = KH.db.settings
+    local parts = { tostring(s.castBy), tostring(s.smartRes and KH.Spells.res or "") }
+    for _, click in ipairs(Bindings.CLICKS) do
+        local b = saved[click.key]
+        local part = ""
+        if b and b.action then
+            part = "action:" .. tostring(b.action)
+        elseif b and b.spell then
+            local info = Bindings.Spell(b)
+            if info then part = tostring(info.castName) .. "#" .. tostring(info.id) end
+        end
+        parts[#parts + 1] = part
+    end
+    return table.concat(parts, "|")
+end
+
+-- out of combat only (protected frame). sig (optional): Signature(), worked out once for all the
+-- frames; a frame whose unit and clicks are unchanged keeps its attributes (39 of them, and every
+-- roster change, settings change and edit-mode drag used to rewrite them all)
+function Bindings.ApplyTo(button, sig)
+    local unit = button:GetAttribute("unit")
+    if sig and button.khhSig == sig and button.khhUnit == unit then return false end
+    for _, a in ipairs(Bindings.Attributes(unit)) do
         button:SetAttribute(a[1], a[2])
     end
+    button.khhSig, button.khhUnit = sig, unit
+    return true
 end
 
 KH:On("SPELLS_UPDATED", function() KH:Fire("BINDINGS_UPDATED") end)

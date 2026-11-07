@@ -11,6 +11,7 @@ local HELP = {
     "/khh frames - show or hide the healer frames",
     "/khh reset - put the frames back in their starting spot",
     "/khh selfcast on | off - the game's Auto Self Cast (off = out-of-range heals don't land on you)",
+    "/khh selfcastkey on | off - the game's Self Cast key (off = Alt clicks on a frame don't land on you; on = Alt)",
     "/khh probe - report what the game hides from addons right now (copy it for the addon author)",
     "/khh errors - show problems the addon ran into; /khh errors clear",
     "/khh minimap - show or hide the minimap button",
@@ -61,6 +62,11 @@ local function Run(input)
         if rest == "on" or rest == "off" then KH.SetAutoSelfCast(rest == "on") end
         KH:Print("Auto Self Cast is %s.", KH.AutoSelfCast() and "on: out-of-range heals land on you"
             or "off: a heal on someone out of range does nothing")
+    elseif cmd == "selfcastkey" then
+        if rest == "on" or rest == "off" then KH.SetSelfCastKey(rest == "on" and "ALT" or "NONE") end
+        local key = KH.SelfCastKey()
+        KH:Print("The Self Cast key is %s.", key == "NONE" and "off: your clicks go to the person you click"
+            or key .. ": holding it sends your spells to you, clicks on these frames too")
     elseif cmd == "minimap" then
         settings.minimap.hide = not settings.minimap.hide
         UI.MinimapButton:Update()

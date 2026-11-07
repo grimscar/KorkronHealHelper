@@ -75,12 +75,15 @@ KH.API = {
     absorbs = UnitGetTotalAbsorbs ~= nil,
 }
 
+-- her and her group's unit tokens (a lookup: this runs for every combat text event)
+local GROUP_UNITS = { player = true }
+for i = 1, 4 do GROUP_UNITS["party" .. i] = true end
+for i = 1, 40 do GROUP_UNITS["raid" .. i] = true end
+
 -- units whose combat text matters: her, her group, and her target while it's someone else.
 -- The game also sends it for every nameplate (mobs and other players around her).
 function KH.WatchedUnit(unit)
-    if unit == "player" or (type(unit) == "string" and (unit:match("^party%d$") or unit:match("^raid%d+$"))) then
-        return true
-    end
+    if GROUP_UNITS[unit] then return true end
     if unit ~= "target" then return false end
     -- the target is often her or someone in her group: their text already came under that unit
     if KH.Bool(UnitIsUnit("target", "player")) ~= false then return false end
@@ -90,7 +93,7 @@ end
 -- errors -------------------------------------------------------------------------------
 -- WoW hides addon errors by default, so a failure would silently stop a feature. Everything
 -- event-, timer- and click-driven runs through Safe: errors are kept for /khh errors and
--- announced once in chat.
+-- announced once in chat (again after /khh errors clear).
 KH.errors = {}
 
 local function RecordError(err)
@@ -101,19 +104,30 @@ local function RecordError(err)
             return
         end
     end
+    local first = #KH.errors == 0
     table.insert(KH.errors, { message = err, count = 1, time = time() })
     if #KH.errors > 20 then table.remove(KH.errors, 1) end
-    if DEFAULT_CHAT_FRAME then
+    if first and DEFAULT_CHAT_FRAME then
         DEFAULT_CHAT_FRAME:AddMessage(CHAT_TAG .. "something went wrong. Type |cffffd100/khh errors|r to see what.")
     end
 end
 
+-- the error text plus where it happened (for /khh errors)
+local function Traceback(e)
+    local stack = debugstack and debugstack(2, 4, 0)
+    return tostring(e) .. (stack and ("\n" .. stack) or "")
+end
+
 function KH.Safe(fn, ...)
-    local n, args = select("#", ...), { ... }
-    local ok, result = xpcall(function() return fn(unpack(args, 1, n)) end, function(e)
-        local stack = debugstack and debugstack(2, 4, 0)
-        return tostring(e) .. (stack and ("\n" .. stack) or "")
-    end)
+    local n = select("#", ...)
+    local ok, result
+    if n == 0 then
+        -- timers and most events: no arguments to carry, so no extra table or function
+        ok, result = xpcall(fn, Traceback)
+    else
+        local args = { ... }
+        ok, result = xpcall(function() return fn(unpack(args, 1, n)) end, Traceback)
+    end
     if not ok then
         RecordError(result)
         return nil
@@ -210,6 +224,22 @@ end
 function KH.SetAutoSelfCast(on)
     local set = (C_CVar and C_CVar.SetCVar) or SetCVar
     if set then pcall(set, "autoSelfCast", on and "1" or "0") end
+end
+
+-- the game's Self Cast key: "ALT" (the game's default), "CTRL", "SHIFT" or "NONE". A spell cast while
+-- it's held goes to you, even one clicked on someone else's frame.
+function KH.SelfCastKey()
+    return GetModifiedClick("SELFCAST")
+end
+
+-- changes and saves it like the game's own option; out of combat only, so a change made in a fight
+-- waits for it to end
+function KH.SetSelfCastKey(key)
+    local now = KH:OutOfCombat("selfCastKey", function()
+        SetModifiedClick("SELFCAST", key)
+        SaveBindings(GetCurrentBindingSet())
+    end)
+    if not now then KH:Print("The Self Cast key will change when this fight ends.") end
 end
 
 -- formatting ---------------------------------------------------------------------------
