@@ -26,23 +26,11 @@ end
 
 local function Build()
     button = CreateFrame("Button", "KorkronHealHelperMinimapButton", Minimap)
-    button:SetSize(31, 31)
     button:SetFrameStrata("MEDIUM")
     button:SetFrameLevel(8)
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     button:RegisterForDrag("LeftButton")
-    button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-
-    local icon = button:CreateTexture(nil, "BACKGROUND")
-    icon:SetSize(20, 20)
-    icon:SetPoint("TOPLEFT", 7, -5)
-    icon:SetTexture(ICON)
-    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-
-    local border = button:CreateTexture(nil, "OVERLAY")
-    border:SetSize(53, 53)
-    border:SetPoint("TOPLEFT")
-    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    KH.Style.Ring(button, 31):SetTexture(ICON)
 
     button:SetScript("OnClick", function(_, mouse)
         if mouse == "RightButton" then

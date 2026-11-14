@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- **A new look, shared by all the Kor'kron mods** for the settings window, its menus and the minimap button: iron frames with a blood-red title band, new lettering, darker buttons with the open tab in red, and slim check boxes and scroll bars. The healer frames look the same as before. After updating, restart the game once (not just `/reload`) so the new art and lettering load.
+
 ## 0.7.1
 
 - **Tells you when there's a new version.** When a guildmate's copy of the addon is newer than yours, a line in chat says so, at each login until you update it in WowUp. The addon sends its version to guildmates' copies over the game's hidden addon channel, once after you log in. This version is the first that does this, so the alert starts working from the next version after it.

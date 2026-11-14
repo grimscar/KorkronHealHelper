@@ -1,6 +1,8 @@
--- Kor'kron Heal Helper: shared UI building blocks (same look as the other Kor'kron mods).
+-- Kor'kron Heal Helper: shared UI building blocks, in the Kor'kron look (UI/Style.lua). The healer frames keep
+-- their own look (UI/UnitFrames.lua).
 local _, KH = ...
 
+local Style = KH.Style
 local UI = {}
 KH.UI = UI
 
@@ -10,9 +12,9 @@ function UI.MakePopup(frame)
     frame:HookScript("OnShow", function(self) self:Raise() end)
 end
 
--- a movable dialog-style window
+-- a movable window that Escape closes; content starts at Style.TOP, under the title band
 function UI.CreateWindow(name, width, height, title)
-    local frame = CreateFrame("Frame", name, UIParent, "BasicFrameTemplateWithInset")
+    local frame = CreateFrame("Frame", name, UIParent)
     frame:SetSize(width, height)
     frame:SetPoint("CENTER")
     frame:SetMovable(true)
@@ -25,15 +27,14 @@ function UI.CreateWindow(name, width, height, title)
     frame:Hide()
     tinsert(UISpecialFrames, name)
     UI.MakePopup(frame)
-    frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    frame.title:SetPoint("TOP", frame.TitleBg or frame, "TOP", 0, -3)
-    frame.title:SetText(title or "")
+    Style.Window(frame, title or "")
     return frame
 end
 
 function UI.Button(parent, text, width, onClick, tooltip)
-    local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    local btn = CreateFrame("Button", nil, parent)
     btn:SetSize(width or 100, 22)
+    Style.Button(btn)
     btn:SetText(text)
     btn:SetScript("OnClick", function(...) KH.Safe(onClick, ...) end)
     if tooltip then
@@ -48,8 +49,9 @@ function UI.Button(parent, text, width, onClick, tooltip)
     return btn
 end
 
+-- font: one of Style.lua's font objects, KorkronHealHelperFont<role>
 function UI.Text(parent, font, wrap)
-    local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
+    local fs = parent:CreateFontString(nil, "OVERLAY", font or "KorkronHealHelperFontHighlightSmall")
     fs:SetJustifyH("LEFT")
     if fs.SetWordWrap then fs:SetWordWrap(wrap and true or false) end
     return fs
@@ -64,9 +66,10 @@ end
 
 -- a checkbox with a label; get() returns the current value, set(value) stores it
 function UI.Check(parent, label, tooltip, get, set)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    local cb = CreateFrame("CheckButton", nil, parent)
     cb:SetSize(24, 24)
-    cb.label = UI.Text(cb, "GameFontHighlight")
+    Style.CheckBox(cb)
+    cb.label = UI.Text(cb, "KorkronHealHelperFontHighlight")
     cb.label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
     cb.label:SetText(label)
     cb:SetScript("OnClick", function(self) KH.Safe(set, self:GetChecked() and true or false) end)
@@ -83,12 +86,12 @@ end
 function UI.Stepper(parent, label, tooltip, get, step, format)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(300, 24)
-    f.label = UI.Text(f, "GameFontHighlight")
+    f.label = UI.Text(f, "KorkronHealHelperFontHighlight")
     f.label:SetPoint("LEFT", 0, 0)
     f.label:SetText(label)
     f.minus = UI.Button(f, "-", 24, function() step(-1); f:Refresh() end)
     f.minus:SetPoint("LEFT", 190, 0)
-    f.value = UI.Text(f, "GameFontNormal")
+    f.value = UI.Text(f, "KorkronHealHelperFontNormal")
     f.value:SetPoint("LEFT", f.minus, "RIGHT", 4, 0)
     f.value:SetWidth(52)
     f.value:SetJustifyH("CENTER")
@@ -109,29 +112,15 @@ end
 -- options: { label, value, selected, header } ; onPick(option) runs when one is clicked.
 
 local menu
-local MENU_ROW = 16
-local MENU_PAD = 15
-
-local MENU_BACKDROP = {
-    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true, tileSize = 32, edgeSize = 32,
-    insets = { left = 11, right = 12, top = 12, bottom = 11 },
-}
+local MENU_ROW = 18
+local MENU_PAD = 6
 
 local function BuildMenu()
-    menu = CreateFrame("Frame", "KorkronHealHelperDropDownMenu", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    menu = CreateFrame("Frame", "KorkronHealHelperDropDownMenu", UIParent, "BackdropTemplate")
     menu:SetFrameStrata("FULLSCREEN_DIALOG")
     menu:SetClampedToScreen(true)
     menu:EnableMouse(true)
-    if menu.SetBackdrop then
-        menu:SetBackdrop(MENU_BACKDROP)
-    else
-        local bg = menu:CreateTexture(nil, "BACKGROUND")
-        bg:SetPoint("TOPLEFT", 11, -12)
-        bg:SetPoint("BOTTOMRIGHT", -12, 11)
-        bg:SetColorTexture(0, 0, 0, 0.9)
-    end
+    Style.Panel(menu)
     menu.buttons = {}
     menu:Hide()
     tinsert(UISpecialFrames, "KorkronHealHelperDropDownMenu")
@@ -144,15 +133,13 @@ local function MenuButton(i)
     btn:SetHeight(MENU_ROW)
     btn:SetPoint("TOPLEFT", MENU_PAD, -MENU_PAD - (i - 1) * MENU_ROW)
     btn:SetPoint("RIGHT", menu, "RIGHT", -MENU_PAD, 0)
+    local gold = Style.COLOR.gold
     btn.hl = btn:CreateTexture(nil, "HIGHLIGHT")
     btn.hl:SetAllPoints()
-    btn.hl:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-    btn.hl:SetBlendMode("ADD")
-    btn.check = btn:CreateTexture(nil, "ARTWORK")
-    btn.check:SetSize(16, 16)
-    btn.check:SetPoint("LEFT", 0, 0)
-    btn.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-    btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    btn.hl:SetColorTexture(gold[1], gold[2], gold[3], 0.12)
+    btn.check = Style.Tick(btn, 14)
+    btn.check:SetPoint("LEFT", 1, 0)
+    btn.text = btn:CreateFontString(nil, "OVERLAY", "KorkronHealHelperFontHighlightSmall")
     btn.text:SetPoint("RIGHT", 0, 0)
     btn.text:SetJustifyH("LEFT")
     btn:SetScript("OnClick", function(self)
@@ -177,13 +164,13 @@ function UI.ShowMenu(anchor, options, onPick, width)
         btn.text:ClearAllPoints()
         btn.text:SetPoint("RIGHT", 0, 0)
         if opt.header then
-            btn.text:SetFontObject("GameFontNormalSmall")
+            btn.text:SetFontObject("KorkronHealHelperFontNormalSmall")
             btn.text:SetPoint("LEFT", 0, 0)
             btn.text:SetText(opt.header)
             btn.check:Hide()
             btn:EnableMouse(false)
         else
-            btn.text:SetFontObject("GameFontHighlightSmall")
+            btn.text:SetFontObject("KorkronHealHelperFontHighlightSmall")
             btn.text:SetPoint("LEFT", 18, 0)
             btn.text:SetText(opt.label)
             btn.check:SetShown(opt.selected and true or false)
@@ -193,7 +180,7 @@ function UI.ShowMenu(anchor, options, onPick, width)
     end
     for i = #options + 1, #menu.buttons do menu.buttons[i]:Hide() end
     menu:ClearAllPoints()
-    menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", -MENU_PAD + 4, 4)
+    menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
     menu:SetSize((width or math.max(160, anchor:GetWidth())) + MENU_PAD * 2, #options * MENU_ROW + MENU_PAD * 2)
     menu:Show()
     menu:Raise()
@@ -209,12 +196,13 @@ function UI.ShowCopyBox(title, text)
     if not copyBox then
         copyBox = UI.CreateWindow("KorkronHealHelperCopyBox", 620, 420, "")
         local scroll = CreateFrame("ScrollFrame", "KorkronHealHelperCopyBoxScroll", copyBox, "UIPanelScrollFrameTemplate")
-        scroll:SetPoint("TOPLEFT", 12, -30)
+        scroll:SetPoint("TOPLEFT", 12, Style.TOP)
         scroll:SetPoint("BOTTOMRIGHT", -32, 12)
+        Style.ScrollBar(scroll)
         local edit = CreateFrame("EditBox", nil, scroll)
         edit:SetMultiLine(true)
         edit:SetAutoFocus(false)
-        edit:SetFontObject("ChatFontNormal")
+        edit:SetFontObject("KorkronHealHelperFontHighlight")
         edit:SetWidth(570)
         edit:SetScript("OnEscapePressed", function() copyBox:Hide() end)
         scroll:SetScrollChild(edit)

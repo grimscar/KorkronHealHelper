@@ -1,11 +1,11 @@
 -- Kor'kron Heal Helper: the main window (Spells, Clicks and Settings tabs).
 local _, KH = ...
 
-local UI = KH.UI
+local UI, Style = KH.UI, KH.Style
 local Main = {}
 UI.Main = Main
 
-local WIDTH, HEIGHT = 700, 500
+local WIDTH, HEIGHT = 700, 508
 local frame
 local tabButtons = {}
 local panels = {}
@@ -44,19 +44,19 @@ local function RowCells(parent, y, font)
 end
 
 local function BuildSpells(panel)
-    panel.intro = UI.Text(panel, "GameFontHighlightSmall", true)
+    panel.intro = UI.Text(panel, "KorkronHealHelperFontHighlightSmall", true)
     panel.intro:SetPoint("TOPLEFT", 0, 0)
     panel.intro:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
     panel.intro:SetText("Lower ranks heal less, but often heal more per point of mana. |cffffd100Per mana|r is the number that saves mana. "
         .. "|cffffd100Seen|r is what your casts really healed (crits left out): after 3 casts of a rank, its Heals number comes from them "
         .. "instead of the tooltip.")
 
-    local head = RowCells(panel, -40, "GameFontNormalSmall")
+    local head = RowCells(panel, -40, "KorkronHealHelperFontNormalSmall")
     for i, col in ipairs(COLUMNS) do head[i]:SetText(col.title) end
     panel.rows = {}
     for r = 1, MAX_ROWS do panel.rows[r] = RowCells(panel, -40 - r * 16) end
 
-    panel.footer = UI.Text(panel, "GameFontHighlightSmall", true)
+    panel.footer = UI.Text(panel, "KorkronHealHelperFontHighlightSmall", true)
     panel.footer:SetPoint("BOTTOMLEFT", 0, 0)
     panel.footer:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
 end
@@ -142,7 +142,7 @@ local function BindingMenu(anchorButton, key)
 end
 
 local function BuildClicks(panel)
-    panel.intro = UI.Text(panel, "GameFontHighlightSmall", true)
+    panel.intro = UI.Text(panel, "KorkronHealHelperFontHighlightSmall", true)
     panel.intro:SetPoint("TOPLEFT", 0, 0)
     panel.intro:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
     panel.intro:SetText("Clicking a healer frame casts on that person. Put a few ranks of your main heal on different clicks: "
@@ -155,14 +155,13 @@ local function BuildClicks(panel)
         swatch:SetSize(10, 10)
         swatch:SetPoint("TOPLEFT", 0, y - 5)
         swatch:SetColorTexture(click.color[1], click.color[2], click.color[3])
-        local label = UI.Text(panel, "GameFontNormal")
+        local label = UI.Text(panel, "KorkronHealHelperFontNormal")
         label:SetPoint("TOPLEFT", 16, y - 4)
         label:SetWidth(120)
         label:SetText(click.label)
-        local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        btn:SetSize(330, 20)
+        local btn = UI.Button(panel, "", 330, function(self) BindingMenu(self, click.key) end)
+        btn:SetHeight(20)
         btn:SetPoint("TOPLEFT", 140, y)
-        btn:SetScript("OnClick", function(self) KH.Safe(BindingMenu, self, click.key) end)
         local short = UI.Text(panel)
         short:SetPoint("LEFT", btn, "RIGHT", 8, 0)
         short:SetText("|cff808080shown as|r " .. click.short)
@@ -308,7 +307,7 @@ local LAYOUT_DEFAULTS = { "width", "height", "scale", "spacingX", "spacingY", "g
 
 local function BuildLayout(panel)
     local f = function() return S().frames end
-    panel.intro = UI.Text(panel, "GameFontHighlightSmall", true)
+    panel.intro = UI.Text(panel, "KorkronHealHelperFontHighlightSmall", true)
     panel.intro:SetPoint("TOPLEFT", 0, 0)
     panel.intro:SetPoint("RIGHT", panel, "RIGHT", 0, 0)
     panel.intro:SetText("How the healer frames look. For quick resizing, use |cffffd100Edit mode|r (or |cffffd100/khh edit|r): "
@@ -386,10 +385,10 @@ local function Build()
     frame = UI.CreateWindow("KorkronHealHelperMain", WIDTH, HEIGHT, KH.TITLE .. " |cff808080" .. KH.version .. "|r")
     for i, tab in ipairs(TABS) do
         local btn = UI.Button(frame, tab.label, 100, function() Main:Show(tab.key) end)
-        btn:SetPoint("TOPLEFT", 14 + (i - 1) * 104, -30)
+        btn:SetPoint("TOPLEFT", 14 + (i - 1) * 104, Style.TOP)
         tabButtons[tab.key] = btn
         local panel = CreateFrame("Frame", nil, frame)
-        panel:SetPoint("TOPLEFT", 16, -62)
+        panel:SetPoint("TOPLEFT", 16, Style.TOP - 32)
         panel:SetPoint("BOTTOMRIGHT", -16, 14)
         panel:Hide()
         BUILDERS[tab.key](panel)
@@ -410,7 +409,7 @@ function Main:Show(tab)
     S().tab = tab
     for key, panel in pairs(panels) do
         panel:SetShown(key == tab)
-        if tabButtons[key].SetEnabled then tabButtons[key]:SetEnabled(key ~= tab) end
+        Style.SetButtonKind(tabButtons[key], key == tab)
     end
     frame:Show()
     Main:Refresh()
