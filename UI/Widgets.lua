@@ -1,18 +1,14 @@
--- Kor'kron Heal Helper: shared UI building blocks, in the Kor'kron look (UI/Style.lua). The healer frames keep
--- their own look (UI/UnitFrames.lua).
 local _, KH = ...
 
 local Style = KH.Style
 local UI = {}
 KH.UI = UI
 
--- pop-ups get their own frame level so overlapping windows don't show through each other
 function UI.MakePopup(frame)
     frame:SetToplevel(true)
     frame:HookScript("OnShow", function(self) self:Raise() end)
 end
 
--- a movable window that Escape closes; content starts at Style.TOP, under the title band
 function UI.CreateWindow(name, width, height, title)
     local frame = CreateFrame("Frame", name, UIParent)
     frame:SetSize(width, height)
@@ -49,7 +45,6 @@ function UI.Button(parent, text, width, onClick, tooltip)
     return btn
 end
 
--- font: one of Style.lua's font objects, KorkronHealHelperFont<role>
 function UI.Text(parent, font, wrap)
     local fs = parent:CreateFontString(nil, "OVERLAY", font or "KorkronHealHelperFontHighlightSmall")
     fs:SetJustifyH("LEFT")
@@ -64,7 +59,6 @@ function UI.Tip(owner, title, text)
     GameTooltip:Show()
 end
 
--- a checkbox with a label; get() returns the current value, set(value) stores it
 function UI.Check(parent, label, tooltip, get, set)
     local cb = CreateFrame("CheckButton", nil, parent)
     cb:SetSize(24, 24)
@@ -82,7 +76,6 @@ function UI.Check(parent, label, tooltip, get, set)
     return cb
 end
 
--- a "-  value  +" stepper: format(value) is shown, step(delta) changes and stores it
 function UI.Stepper(parent, label, tooltip, get, step, format)
     local f = CreateFrame("Frame", nil, parent)
     f:SetSize(300, 24)
@@ -107,9 +100,6 @@ function UI.Stepper(parent, label, tooltip, get, step, format)
     f:Refresh()
     return f
 end
-
--- dropdown menu --------------------------------------------------------------------------
--- options: { label, value, selected, header } ; onPick(option) runs when one is clicked.
 
 local menu
 local MENU_ROW = 18
@@ -190,7 +180,6 @@ function UI.HideMenu()
     if menu then menu:Hide() end
 end
 
--- a window with selectable text (Ctrl+A, Ctrl+C) for reports to send to the addon author
 local copyBox
 function UI.ShowCopyBox(title, text)
     if not copyBox then

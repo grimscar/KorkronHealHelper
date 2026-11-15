@@ -1,4 +1,3 @@
--- Kor'kron Heal Helper: minimap button (drag to move around the minimap edge).
 local _, KH = ...
 
 local UI = KH.UI

@@ -1,33 +1,7 @@
--- Kor'kron Heal Helper: what each healing class can cast.
---
--- Forever follows Classic rules (spell ranks, the level-20 downranking penalty, +healing gear),
--- so this is Classic data. It is only a starting point:
---   * Which ranks she knows is read from her spellbook (Spells.lua); the IDs here are a fallback.
---   * Heal amounts and mana costs are read from the game (tooltip text, GetSpellPowerCost);
---     the numbers here are only used when the game hasn't sent them yet.
--- What the game can't tell us is kept here: the level each rank is learned (for the penalty)
--- and the base cast time (for how much +healing a rank gets).
---
--- heals[name]
---   kind      "direct" (one heal), "hot" (heal over time), "shield", "group" (heals several),
---             "special" (Forever-only, behaviour not known yet); only direct heals get advice
---             and are measured
---   duration  heal over time: seconds
---   hot       a direct heal with a heal over time after it (Regrowth): the HoT's seconds
---   role      "efficient" = the advisor picks between these by size; "fast" = the emergency heal
---   cast      base cast time in seconds (before talents), per rank when it changes with rank
---   short     abbreviation shown on the frames ("HW" + rank)
---   ranks[n]  { id = spell ID, level = learned at, min, max, cost }
--- cleanses[name] = { types = { Poison = true, ... }, ids = { ... } }
--- others[name] = { ids = { ... } }  other spells worth a click (Rebirth, Lay on Hands, ...)
--- res = { name, ids }  the resurrection a click on a dead frame casts instead (out of combat
---                      ones only: never Rebirth)
 local _, KH = ...
 
 local ClassData = {}
 KH.ClassData = ClassData
-
--- Shaman (tested in game first) -----------------------------------------------------------
 
 local SHAMAN = {
     heals = {
@@ -71,8 +45,6 @@ local SHAMAN = {
         ["Cure Disease"] = { types = { Disease = true }, ids = { 2870 } },
     },
     res = { name = "Ancestral Spirit", ids = { 2008, 20609, 20610, 20776, 20777 } },
-    -- the frames' border colour says which click fits: plain Left (most efficient) for most
-    -- heals, Shift for big ones, Ctrl for top-ups, Right (Lesser Healing Wave) when it's urgent
     defaults = {
         ["1"] = { spell = "Healing Wave", rank = "best" },
         ["shift-1"] = { spell = "Healing Wave", rank = "max" },
@@ -86,12 +58,6 @@ local SHAMAN = {
     },
 }
 
--- Other healers (prep pass, not tested in game yet) ------------------------------------------
--- Spell IDs per rank come from the beta's own rank list (ForeverAuras SecretAuraRanks.lua).
--- Levels and cast times are Classic data. Forever-only spells (Penance, Prayer of Mending,
--- Binding Heal, Wild Growth, Revive, ...) have no level here: unknown until someone plays them.
--- Their amounts come from the tooltip or her real heals like every other spell.
-
 local function Ranks(cast, list)
     local out = {}
     for i, r in ipairs(list) do
@@ -100,7 +66,6 @@ local function Ranks(cast, list)
     return out
 end
 
--- ranks without known levels (Forever-only spells): just the IDs
 local function IDs(cast, ids)
     local out = {}
     for i, id in ipairs(ids) do out[i] = { id = id, cast = cast } end
@@ -125,7 +90,6 @@ local PRIEST = {
             ranks = Ranks(3.0, { { 596, 30 }, { 996, 40 }, { 10960, 50 }, { 10961, 60 }, { 25316, 60 } }) },
         ["Holy Nova"] = { kind = "group", short = "HN",
             ranks = Ranks(1.5, { { 15237, 20 }, { 15430, 28 }, { 15431, 36 }, { 27799, 44 }, { 27800, 52 }, { 27801, 60 } }) },
-        -- Forever-only (what they do is still to be seen in game)
         ["Penance"] = { kind = "special", short = "Pen", ranks = IDs(nil, { 402174, 1240720, 1240721, 1316995 }) },
         ["Prayer of Mending"] = { kind = "special", short = "PoM", ranks = IDs(nil, { 401859, 1240826, 1240827 }) },
         ["Binding Heal"] = { kind = "direct", short = "BH", ranks = IDs(1.5, { 401937, 1240770, 1240771, 1240772, 1240773, 1240774 }) },
@@ -140,8 +104,6 @@ local PRIEST = {
         ["Power Infusion"] = { ids = { 10060 } },
     },
     res = { name = "Resurrection", ids = { 2006, 2010, 10880, 10881, 20770 } },
-    -- same idea as the Shaman: main heal on Left/Shift/Ctrl, fast heal on Right; the frame's
-    -- border shows which fits. Heal until Greater Heal is learned at 40, Lesser Heal before 16.
     defaults = {
         ["1"] = { spell = "Greater Heal", rank = "best", fallback = { "Heal", "Lesser Heal" } },
         ["shift-1"] = { spell = "Greater Heal", rank = "max", fallback = { "Heal", "Lesser Heal" } },
@@ -168,7 +130,6 @@ local DRUID = {
         ["Tranquility"] = { kind = "group", short = "Tq",
             ranks = Ranks(10, { { 740, 30 }, { 8918, 40 }, { 9862, 50 }, { 9863, 60 } }) },
         ["Swiftmend"] = { kind = "special", short = "SM", ranks = Ranks(nil, { { 18562, 40 } }) },
-        -- Forever-only
         ["Wild Growth"] = { kind = "hot", short = "WG", duration = 7, ranks = IDs(nil, { 408120, 1238214, 1238215 }) },
     },
     cleanses = {
@@ -176,13 +137,10 @@ local DRUID = {
         ["Cure Poison"] = { types = { Poison = true }, ids = { 8946 } },
         ["Abolish Poison"] = { types = { Poison = true }, ids = { 2893 } },
     },
-    -- Rebirth (combat resurrection: reagent, 30 min cooldown) is never cast by a plain click on a
-    -- dead frame; bind it to a click of its own if wanted
     others = {
         ["Rebirth"] = { ids = { 20484, 20739, 20742, 20747, 20748 } },
         ["Innervate"] = { ids = { 29166 } },
     },
-    -- Forever's out-of-combat resurrection
     res = { name = "Revive", ids = { 437138, 1237948, 1237949, 1237950, 1237951 } },
     defaults = {
         ["1"] = { spell = "Healing Touch", rank = "best" },
@@ -201,13 +159,9 @@ local DRUID = {
 local PALADIN = {
     heals = {
         ["Holy Light"] = { kind = "direct", role = "efficient", short = "HL",
-            -- Forever: Paladins start with only a damage seal; Holy Light 1 comes from the quest
-            -- "Rediscovering the Light" (around level 2), later ranks from the trainer
             ranks = Ranks(2.5, { { 635, 2 }, { 639, 6 }, { 647, 14 }, { 1026, 22 }, { 1042, 30 }, { 3472, 38 }, { 10328, 46 }, { 10329, 54 }, { 25292, 60 } }) },
-        -- the paladin's fast heal (orange advice below the emergency health)
         ["Flash of Light"] = { kind = "direct", role = "fast", short = "FoL",
             ranks = Ranks(1.5, { { 19750, 20 }, { 19939, 26 }, { 19940, 34 }, { 19941, 42 }, { 19942, 50 }, { 19943, 58 } }) },
-        -- in the beta's list order (1311606 may be a Forever-only low rank)
         ["Holy Shock"] = { kind = "direct", short = "HS", ranks = IDs(1.5, { 1311606, 20473, 20929, 20930 }) },
     },
     cleanses = {
@@ -221,7 +175,6 @@ local PALADIN = {
         ["Blessing of Sacrifice"] = { ids = { 6940, 20729 } },
     },
     res = { name = "Redemption", ids = { 7328, 10322, 10324, 20772, 20773 } },
-    -- Flash of Light comes at 20; before that Right casts Holy Light's highest rank
     defaults = {
         ["1"] = { spell = "Holy Light", rank = "best" },
         ["shift-1"] = { spell = "Holy Light", rank = "max" },
@@ -238,7 +191,6 @@ local PALADIN = {
 
 ClassData.classes = { SHAMAN = SHAMAN, PRIEST = PRIEST, DRUID = DRUID, PALADIN = PALADIN }
 
--- dispel colours (same as the game's debuff borders)
 ClassData.DISPEL_COLORS = {
     Magic = { 0.20, 0.60, 1.00 },
     Curse = { 0.60, 0.00, 1.00 },
@@ -246,15 +198,12 @@ ClassData.DISPEL_COLORS = {
     Poison = { 0.00, 0.60, 0.00 },
 }
 
--- the player's class never changes: remembered once readable (the game may hide it in combat)
 local playerClass
 function ClassData.ForPlayer()
     playerClass = playerClass or KH.Text(select(2, UnitClass("player")))
     return playerClass and ClassData.classes[playerClass], playerClass
 end
 
--- Classic's rule for how much +healing a direct heal gets: cast time / 3.5 (1.5s to 3.5s),
--- and spells learned before level 20 get less: -3.75% per level below 20.
 function ClassData.Coefficient(spell, rank)
     local cast = rank.cast or spell.cast or 3.0
     local coef

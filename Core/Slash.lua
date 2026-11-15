@@ -1,4 +1,3 @@
--- Kor'kron Heal Helper: /khh commands.
 local _, KH = ...
 
 local HELP = {

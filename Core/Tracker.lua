@@ -1,49 +1,31 @@
--- Kor'kron Heal Helper: what is happening to each person right now, for the advice.
---
--- * Damage taken per second, from the game's combat text (UNIT_COMBAT "WOUND"): the advice only
---   calls for the fast, expensive heal when someone would reach 0 before her efficient heal lands.
---   Health itself is hidden in combat; the damage numbers so far are readable. When they're hidden
---   too, the advice goes back to the "emergency below X%" line.
--- * Her heals over time on them (Rejuvenation, Renew, Regrowth's second part): the healing still to
---   come counts as if it had already landed, so no heal is suggested that her HoT would cover.
---   The game hides buffs from addons in combat and the combat log is off limits, so her HoTs are
---   worked out from her own casts: the spell from UNIT_SPELLCAST_SUCCEEDED, the person from the
---   frame she just clicked, or else the target name the game sent with the cast.
---   Other healers' HoTs aren't known.
 local _, KH = ...
 
 local Tracker = {}
 KH.Tracker = Tracker
 
-Tracker.WINDOW = 5          -- seconds of damage averaged into "damage per second"
-Tracker.TICK = 3            -- seconds between HoT ticks (Classic: every 3 s)
-Tracker.CLICK_WINDOW = 1    -- a cast this soon after a frame click went to that frame's person
+Tracker.WINDOW = 5
+Tracker.TICK = 3
+Tracker.CLICK_WINDOW = 1
 Tracker.stats = { damage = 0, hiddenDamage = 0, hots = 0, hotsUnplaced = 0, timed = 0, pushbacks = 0,
-    kinds = {} }            -- combat text per kind ("WOUND", "HEAL", "ABSORB", ...), for the probe
+    kinds = {} }
 
--- Being hit pushes her cast bar back, so with mobs on her a 2 s heal can take 4 s. Her casts are
--- timed (UNIT_SPELLCAST_START to SUCCEEDED) and how much longer than the spellbook they took while
--- she was being hit is remembered; the danger line adds it while she's taking damage.
-Tracker.DELAYS = 5          -- casts under attack averaged
-local delays = {}           -- seconds longer than the spellbook, her last casts while being hit
-local casting               -- { castGUID, start, expected, hit } of the cast in progress
+Tracker.DELAYS = 5
+local delays = {}
+local casting
 
-local damage = {}           -- [guid] = { { time, amount }, ... } the last WINDOW seconds
-local hots = {}             -- [guid] = { [spell name] = { amount, start, duration } }
-local sent                  -- { castGUID, target name (possibly hidden) } of her last UNIT_SPELLCAST_SENT
-local lastClick             -- { unit, time } of the last frame click
+local damage = {}
+local hots = {}
+local sent
+local lastClick
 
--- who a unit is: its GUID, or the unit itself while the game hides the GUID
 local function GUID(unit)
     return unit and (KH.Text(UnitGUID(unit)) or unit)
 end
 
--- false once the game hides damage numbers (the advice then uses the health % line)
 function Tracker.DamageReadable()
     return Tracker.lastDamageHidden ~= true
 end
 
--- drops hits older than WINDOW seconds; returns what's left of them added up
 local function Recent(guid)
     local list = damage[guid]
     if not list then return 0 end
@@ -59,14 +41,11 @@ local function Recent(guid)
     return sum
 end
 
--- damage per second taken over the last WINDOW seconds (0 when nothing hit them)
 function Tracker.DamagePerSecond(unit)
     local guid = GUID(unit)
     return guid and Recent(guid) / Tracker.WINDOW or 0
 end
 
--- seconds her casts take longer than the spellbook says right now: the average pushback of her
--- recent casts while hit, but only while she is being hit (0 otherwise)
 function Tracker.CastDelay()
     if #delays == 0 or Tracker.DamagePerSecond("player") <= 0 then return 0 end
     local sum = 0
@@ -74,7 +53,6 @@ function Tracker.CastDelay()
     return sum / #delays
 end
 
--- healing her HoTs on this person will still do (0 when none)
 function Tracker.HotRemaining(unit)
     local mine = hots[GUID(unit) or ""]
     if not mine then return 0 end
@@ -91,7 +69,6 @@ function Tracker.HotRemaining(unit)
     return total
 end
 
--- anything going on that makes the advice change by itself over time?
 function Tracker.Busy()
     for guid in pairs(damage) do Recent(guid) end
     for guid, mine in pairs(hots) do
@@ -105,12 +82,10 @@ function Tracker.Clear()
     wipe(hots)
 end
 
--- the frame she clicked (UI/UnitFrames.lua calls this from each frame's PreClick)
 function Tracker.Clicked(unit)
     lastClick = { unit = unit, time = GetTime() }
 end
 
--- the amount and duration of a HoT, for the spell ID she cast; nil when it isn't one
 local function HotOf(spellID)
     local info = KH.Spells.byID[spellID]
     local def = info and KH.Spells.Def(info.name)
@@ -119,8 +94,6 @@ local function HotOf(spellID)
     if def.hot and info.hotAmount then return info.name .. " (HoT)", info.hotAmount, def.hot end
 end
 
--- who a cast went to: the frame she just clicked, else the person whose name the game sent.
--- Returns the unit, or nil and why not (for the probe).
 local function TargetOf(castGUID)
     local matched = sent and castGUID and sent.castGUID == castGUID
     local name = matched and sent.target
@@ -130,7 +103,6 @@ local function TargetOf(castGUID)
     end
     if not matched then return nil, "no target sent with the cast" end
     if not KH.Readable(name) then return nil, "target name hidden" end
-    -- no target, or an enemy targeted: the game's Auto Self Cast put the heal on her
     if name == nil or name == "" then
         if KH.AutoSelfCast() then return "player" end
         return nil, "no target name"
@@ -139,7 +111,6 @@ local function TargetOf(castGUID)
         and KH.Text((UnitName("target"))) == name then
         return "player"
     end
-    -- "Name-Realm" from the game, "Name" on the frames
     local short = string.match(name, "^([^%-]+)%-") or name
     local units = { "player" }
     if IsInRaid() then
@@ -169,7 +140,6 @@ KH:RegisterEvent("UNIT_SPELLCAST_START", function(unit, castGUID, spellID)
     casting = { castGUID = castGUID, start = GetTime(), expected = info.castTime, hit = false }
 end)
 
--- the game says her cast bar was pushed back
 KH:RegisterEvent("UNIT_SPELLCAST_DELAYED", function(unit)
     if unit ~= "player" or not casting then return end
     casting.hit = true
@@ -188,12 +158,10 @@ end
 
 for _, event in ipairs({ "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_STOP" }) do
     KH:RegisterEvent(event, function(unit, castGUID)
-        -- STOP also comes right before SUCCEEDED on some clients: only a different cast clears it
         if unit == "player" and casting and event ~= "UNIT_SPELLCAST_STOP" then casting = nil end
     end)
 end
 
--- for the probe: the average and longest pushback learned
 function Tracker.DelayStats()
     local sum, most = 0, 0
     for _, d in ipairs(delays) do sum, most = sum + d, math.max(most, d) end
@@ -223,10 +191,8 @@ KH:RegisterEvent("UNIT_COMBAT", function(unit, action, _, amount)
     if not KH.WatchedUnit(unit) or not KH.Readable(action) then return end
     local kinds = Tracker.stats.kinds
     kinds[action] = (kinds[action] or 0) + 1
-    -- a hit a shield soaked up fully comes as "ABSORB": it's still damage coming at them
     if action == "ABSORB" then action = "WOUND" end
     if action ~= "WOUND" then return end
-    -- a hit on her while casting pushes the cast back (in case the game sends no DELAYED event)
     if unit == "player" and casting then casting.hit = true end
     local value = KH.Num(amount)
     if not value then
@@ -242,8 +208,6 @@ KH:RegisterEvent("UNIT_COMBAT", function(unit, action, _, amount)
     table.insert(damage[guid], { GetTime(), value })
 end)
 
--- the dead lose their HoTs (health events come for every unit, many times a second: nothing to
--- do while she has no HoTs out)
 KH:RegisterEvent("UNIT_HEALTH", function(unit)
     if next(hots) == nil then return end
     local guid = GUID(unit)

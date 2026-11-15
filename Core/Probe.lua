@@ -1,13 +1,3 @@
--- Kor'kron Heal Helper: "what does the game hide from addons right now?"
---
--- Forever hides values from addons in combat and sometimes inside instances, and which ones
--- exactly isn't documented. The probe writes down, for the player, a party member and the
--- target, whether each value an addon healer needs is readable or hidden, plus which
--- secret-safe tools the client offers.
---
--- It takes a snapshot by itself a moment after each fight starts (combat) and after loading
--- into the world (calm). /khh probe shows the current state and the last fight's snapshot in a
--- copyable window.
 local _, KH = ...
 
 local Probe = {}
@@ -131,7 +121,6 @@ function Probe.Collect()
     lines[#lines + 1] = "other spells known: " .. (#others > 0 and table.concat(others, ", ") or "none")
         .. "; resurrection: " .. tostring(KH.Spells.res or "none")
     lines[#lines + 1] = "talents: " .. Probe.Talents()
-    -- healing spells the addon has no data for yet (Forever-only): their tooltips say what they do
     local unknown = KH.Spells.UnknownHealingSpells()
     lines[#lines + 1] = string.format("healing spells the addon doesn't know yet: %d", #unknown)
     for i, s in ipairs(unknown) do
@@ -142,8 +131,6 @@ function Probe.Collect()
     return lines
 end
 
--- one talent tree's name and points: Forever answers through C_SpecializationInfo (a table),
--- older clients through the globals (Classic and Cata return orders)
 local function TalentTab(i)
     local spec = C_SpecializationInfo
     if spec and spec.GetTalentTabInfo then
@@ -157,7 +144,6 @@ local function TalentTab(i)
     return r[3], r[6]
 end
 
--- the talent window's trees, left to right
 local TREES = {
     DRUID = { "Balance", "Feral Combat", "Restoration" },
     PALADIN = { "Holy", "Protection", "Retribution" },
@@ -165,9 +151,6 @@ local TREES = {
     SHAMAN = { "Elemental", "Enhancement", "Restoration" },
 }
 
--- Forever 1.60 has no talent tabs: its talent window is one Traits tree with every talent as a
--- node. The three classic trees are three groups of node columns (posX), split where the gap
--- between neighbouring columns is widest. nil when the game won't say.
 function Probe.TraitTalents()
     local traits, classTalents = C_Traits, C_ClassTalents
     if not (traits and classTalents and classTalents.GetActiveConfigID and traits.GetConfigInfo
@@ -191,7 +174,6 @@ function Probe.TraitTalents()
     end
     if #columns < 3 then return nil, #columns .. " talent columns" end
     table.sort(columns)
-    -- the two widest gaps between columns separate the three trees
     local gaps = {}
     for i = 2, #columns do gaps[#gaps + 1] = { at = i, size = columns[i] - columns[i - 1] } end
     table.sort(gaps, function(a, b) return a.size > b.size end)
@@ -204,7 +186,6 @@ function Probe.TraitTalents()
     return trees
 end
 
--- points per talent tree: "Balance 0, Feral Combat 9, Restoration 0"
 function Probe.Talents()
     local spec = C_SpecializationInfo
     local count = spec and spec.GetNumTalentTabs or GetNumTalentTabs
@@ -245,7 +226,6 @@ function Probe.Snapshot(tag)
     KH.db.probe[tag] = { time = time(), lines = Probe.Collect() }
 end
 
--- the text for the copy window: now, plus the last snapshots
 function Probe.Report()
     local lines = { "== now ==" }
     for _, l in ipairs(Probe.Collect()) do lines[#lines + 1] = l end
@@ -257,10 +237,9 @@ function Probe.Report()
             for _, l in ipairs(snap.lines) do lines[#lines + 1] = l end
         end
     end
-    -- colour codes don't belong in a copy-paste
     local text = table.concat(lines, "\n")
     text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
-    text = string.gsub(text, "|cn[^:|]*:", "") -- Forever's quality colours ("|cnIQ4:")
+    text = string.gsub(text, "|cn[^:|]*:", "")
     text = string.gsub(text, "|r", "")
     return text
 end

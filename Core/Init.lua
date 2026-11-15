@@ -1,7 +1,6 @@
--- Kor'kron Heal Helper: namespace, utilities, event dispatch and timers.
 local ADDON_NAME, KH = ...
 
-KorkronHealHelper = KH -- global handle for debugging and other addons in the pack
+KorkronHealHelper = KH
 
 local GetMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 
@@ -19,7 +18,6 @@ local function Format(fmt, ...)
     return string.format(fmt, unpack(args, 1, n))
 end
 
--- all format arguments are tostring()'d, so only use %s in messages
 function KH:Print(fmt, ...)
     DEFAULT_CHAT_FRAME:AddMessage(CHAT_TAG .. Format(fmt, ...))
 end
@@ -29,71 +27,45 @@ function KH:Debug(fmt, ...)
     DEFAULT_CHAT_FRAME:AddMessage("|cff888888[KHH debug]|r " .. Format(fmt, ...))
 end
 
--- hidden values -------------------------------------------------------------------
--- Forever runs on the same engine as retail 12.x. In combat (and in some places inside
--- instances) the game hides values from addons: health, auras, names and more come back
--- as "secret values". Addons may hand them straight to the game (a health bar, a text, a
--- colour) but any maths, comparison or string work on one throws an error.
---
--- So every value from the game goes through Readable/Num/Text before Lua looks at it,
--- and anything that has to work in combat uses the secret-safe APIs instead (see API).
-
 function KH.Readable(value)
     return not (issecretvalue and issecretvalue(value))
 end
 
--- the value if it is a number we may read, else nil
 function KH.Num(value)
     if type(value) == "number" and KH.Readable(value) then return value end
     return nil
 end
 
--- the value if it is a string we may read, else nil
 function KH.Text(value)
     if type(value) == "string" and KH.Readable(value) then return value end
     return nil
 end
 
--- the value as true/false if we may read it, else nil (check Readable before comparing anything:
--- even `value == nil` is maths on a hidden value)
 function KH.Bool(value)
     if not KH.Readable(value) then return nil end
     return value and true or false
 end
 
--- which secret-safe building blocks this client has (checked once at load)
 KH.API = {
-    -- health percentage run through a curve by the game itself, so it works on hidden health
     curves = (C_CurveUtil and C_CurveUtil.CreateCurve and UnitHealthPercent and Enum and Enum.LuaCurveType) and true or false,
-    -- pick between two numbers with a hidden true/false (range checks)
     pickFromBool = (C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean) and true or false,
-    -- Blizzard-run aura icons that keep working when auras are hidden in combat
     auraContainers = (C_XMLUtil and C_XMLUtil.GetTemplateInfo
         and C_XMLUtil.GetTemplateInfo("CustomAuraContainerTemplate")) and true or false,
     healthMissing = UnitHealthMissing ~= nil,
-    -- damage shields (Power Word: Shield) left on someone, as a number the game may hide
     absorbs = UnitGetTotalAbsorbs ~= nil,
 }
 
--- her and her group's unit tokens (a lookup: this runs for every combat text event)
 local GROUP_UNITS = { player = true }
 for i = 1, 4 do GROUP_UNITS["party" .. i] = true end
 for i = 1, 40 do GROUP_UNITS["raid" .. i] = true end
 
--- units whose combat text matters: her, her group, and her target while it's someone else.
--- The game also sends it for every nameplate (mobs and other players around her).
 function KH.WatchedUnit(unit)
     if GROUP_UNITS[unit] then return true end
     if unit ~= "target" then return false end
-    -- the target is often her or someone in her group: their text already came under that unit
     if KH.Bool(UnitIsUnit("target", "player")) ~= false then return false end
     return KH.Bool(UnitInParty("target")) == false and KH.Bool(UnitInRaid("target")) == false
 end
 
--- errors -------------------------------------------------------------------------------
--- WoW hides addon errors by default, so a failure would silently stop a feature. Everything
--- event-, timer- and click-driven runs through Safe: errors are kept for /khh errors and
--- announced once in chat (again after /khh errors clear).
 KH.errors = {}
 
 local function RecordError(err)
@@ -112,7 +84,6 @@ local function RecordError(err)
     end
 end
 
--- the error text plus where it happened (for /khh errors)
 local function Traceback(e)
     local stack = debugstack and debugstack(2, 4, 0)
     return tostring(e) .. (stack and ("\n" .. stack) or "")
@@ -122,7 +93,6 @@ function KH.Safe(fn, ...)
     local n = select("#", ...)
     local ok, result
     if n == 0 then
-        -- timers and most events: no arguments to carry, so no extra table or function
         ok, result = xpcall(fn, Traceback)
     else
         local args = { ... }
@@ -135,12 +105,9 @@ function KH.Safe(fn, ...)
     return result
 end
 
--- game events --------------------------------------------------------------------------
-
 local eventFrame = CreateFrame("Frame")
 local eventHandlers = {}
 
--- returns false if the client does not know the event
 function KH:RegisterEvent(event, handler)
     if not eventHandlers[event] then
         if not pcall(eventFrame.RegisterEvent, eventFrame, event) then return false end
@@ -158,8 +125,6 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     end
 end)
 
--- internal message bus (SPELLS_UPDATED, BINDINGS_UPDATED, SETTINGS_UPDATED, ...) -------
-
 local callbacks = {}
 
 function KH:On(message, fn)
@@ -175,8 +140,6 @@ function KH:Fire(message, ...)
     end
 end
 
--- timers -------------------------------------------------------------------------------
-
 function KH:After(delay, fn)
     if C_Timer and C_Timer.After then
         C_Timer.After(delay, function() KH.Safe(fn) end)
@@ -185,7 +148,6 @@ function KH:After(delay, fn)
     end
 end
 
--- run fn once things have been quiet for `delay` seconds
 local debounceTokens = {}
 function KH:Debounce(key, delay, fn)
     local token = (debounceTokens[key] or 0) + 1
@@ -195,7 +157,6 @@ function KH:Debounce(key, delay, fn)
     end)
 end
 
--- protected work (click-casting, moving frames) can't happen in combat: queue it until combat ends
 local afterCombat = {}
 function KH:OutOfCombat(key, fn)
     if not InCombatLockdown() then
@@ -212,8 +173,6 @@ KH:RegisterEvent("PLAYER_REGEN_ENABLED", function()
     for _, fn in pairs(queued) do KH.Safe(fn) end
 end)
 
--- the game's Auto Self Cast option: when the person a heal is aimed at can't be reached
--- (out of range), the game casts it on you instead. Healers usually want it off.
 function KH.AutoSelfCast()
     local get = (C_CVar and C_CVar.GetCVarBool) or GetCVarBool
     if not get then return nil end
@@ -226,14 +185,10 @@ function KH.SetAutoSelfCast(on)
     if set then pcall(set, "autoSelfCast", on and "1" or "0") end
 end
 
--- the game's Self Cast key: "ALT" (the game's default), "CTRL", "SHIFT" or "NONE". A spell cast while
--- it's held goes to you, even one clicked on someone else's frame.
 function KH.SelfCastKey()
     return GetModifiedClick("SELFCAST")
 end
 
--- changes and saves it like the game's own option; out of combat only, so a change made in a fight
--- waits for it to end
 function KH.SetSelfCastKey(key)
     local now = KH:OutOfCombat("selfCastKey", function()
         SetModifiedClick("SELFCAST", key)
@@ -242,13 +197,10 @@ function KH.SetSelfCastKey(key)
     if not now then KH:Print("The Self Cast key will change when this fight ends.") end
 end
 
--- formatting ---------------------------------------------------------------------------
-
 function KH.Round(n)
     return math.floor(n + 0.5)
 end
 
--- 1234 -> "1.2k"
 function KH.Short(n)
     if n >= 10000 then return string.format("%dk", KH.Round(n / 1000)) end
     if n >= 1000 then return string.format("%.1fk", n / 1000) end

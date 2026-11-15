@@ -1,16 +1,3 @@
--- Kor'kron Heal Helper: the heals and cleanses you know, and what each rank is worth.
---
--- Spells.heals[name]    = { def = ClassData entry, ranks = { [n] = info }, maxRank = n }
--- Spells.cleanses[name] = { def = ClassData entry, info = info }
--- Spells.others[name]   = { def = ClassData entry, info = info }  (Rebirth, Lay on Hands, ...)
--- Spells.dispels[type]  = true for every debuff type you can remove ("Poison", "Disease", ...)
--- Spells.byID[spellID]  = info
--- Spells.res            = name of your resurrection spell, if you know it
---
--- info = { id, name, rank, castName, min, max, cost, castTime, coef, bonus, amount, hpm, hps, best }
---   amount  average heal including +healing (Classic coefficients, see ClassData.Coefficient)
---   hpm     heal per mana, the number that says which rank is mana-efficient
---   best    true for the rank with the best heal per mana of that spell
 local _, KH = ...
 
 local Spells = {}
@@ -25,9 +12,6 @@ Spells.bonus = 0
 
 local ClassData = KH.ClassData
 
--- spellbook ------------------------------------------------------------------------------
-
--- every spell in the spellbook as { id, name, subName }
 local function ReadSpellbook()
     local out = {}
     if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookItemInfo then
@@ -70,15 +54,12 @@ local function RankFromText(subName)
     return subName and tonumber(string.match(subName, "(%d+)"))
 end
 
--- the rank number of a spellbook entry: by its ID in our table, else its "Rank 3" text
 local function RankOf(def, id, subName)
     for n, r in ipairs(def.ranks or {}) do
         if r.id == id then return n end
     end
     return RankFromText(subName)
 end
-
--- spell details from the game --------------------------------------------------------------
 
 local function Description(id)
     local text
@@ -89,7 +70,7 @@ local function Description(id)
     end
     text = KH.Text(text)
     if (not text or text == "") and C_Spell and C_Spell.RequestLoadSpellData then
-        C_Spell.RequestLoadSpellData(id) -- SPELL_DATA_LOAD_RESULT triggers a rescan
+        C_Spell.RequestLoadSpellData(id)
     end
     return text
 end
@@ -98,10 +79,8 @@ local function Number(s)
     return s and tonumber((string.gsub(s, "[,%.]", "")))
 end
 
--- "Heals a friendly target for 268 to 316." -> 268, 316
 function Spells.ParseAmount(text, kind)
     if not text then return nil end
-    -- "Heals the target of 45 damage over 15 sec." / "Heals the target for 32 over 12 sec."
     if kind == "hot" then
         local total = string.match(text, "(%d[%d,%.]*) damage over") or string.match(text, "(%d[%d,%.]*) over %d")
         if total then return Number(total), Number(total) end
@@ -130,7 +109,6 @@ local function ManaCost(id)
     return nil
 end
 
--- seconds, after talents (Improved Healing Wave and the like)
 local function CastTime(id)
     local ms
     if C_Spell and C_Spell.GetSpellInfo then
@@ -148,20 +126,16 @@ local function SpellName(id)
     if GetSpellInfo then return KH.Text((GetSpellInfo(id))) end
 end
 
--- nil while the game hides it (in combat): keep the last known value then
 local function BonusHealing()
     if not GetSpellBonusHealing then return 0 end
     return KH.Num(GetSpellBonusHealing())
 end
 
--- what a click-cast or macro uses to cast this exact rank
 local function CastName(name, rank, subName, rankCount)
     if subName and subName ~= "" then return name .. "(" .. subName .. ")" end
     if rank and rankCount > 1 then return name .. "(Rank " .. rank .. ")" end
     return name
 end
-
--- scanning ---------------------------------------------------------------------------------
 
 local function BuildInfo(name, def, rank, id, subName)
     local rdef = def.ranks and def.ranks[rank] or {}
@@ -172,7 +146,6 @@ local function BuildInfo(name, def, rank, id, subName)
     local text = Description(id)
     local lo, hi = Spells.ParseAmount(text, def.kind)
     info.parsed = lo ~= nil
-    -- Regrowth: "... for 93 to 107 and another 98 over 21 sec."
     if def.hot and text then
         local rest = string.match(text, "for %d[%d,%.]* to %d[%d,%.]*(.*)")
         info.hotAmount = rest and Spells.ParseAmount(rest, "hot")
@@ -181,8 +154,6 @@ local function BuildInfo(name, def, rank, id, subName)
     info.cost = ManaCost(id) or rdef.cost
     info.castTime = CastTime(id) or rdef.cast or def.cast
     info.coef = ClassData.Coefficient(def, rdef)
-    -- where the amount comes from, best first: her real heals ("seen"), the tooltip (which
-    -- already includes +healing on Forever), or the Classic base values plus +healing ("estimate")
     info.seen = KH.Measure and KH.Measure.Seen(id)
     local seenAverage = KH.Measure and KH.Measure.Average(id)
     if seenAverage then
@@ -214,7 +185,6 @@ function Spells.Scan()
         return
     end
 
-    -- name -> rank -> { id, subName }
     local found = {}
     local function Add(name, rank, id, subName)
         found[name] = found[name] or {}
@@ -232,7 +202,6 @@ function Spells.Scan()
             Add(name, data.heals[name] and RankOf(def, entry.id, entry.subName) or 1, entry.id, entry.subName)
         end
     end
-    -- ranks the spellbook didn't list (some clients only show the highest rank)
     for name, def in pairs(data.heals) do
         for n, r in ipairs(def.ranks) do
             if r.id and Known(r.id) then Add(name, n, r.id) end
@@ -259,7 +228,6 @@ function Spells.Scan()
                 Spells.byID[r.id] = info
                 if rank > entry.maxRank then entry.maxRank = rank end
             end
-            -- flag the most mana-efficient rank
             local best
             for _, info in pairs(entry.ranks) do
                 if info.hpm and (not best or info.hpm > best.hpm) then best = info end
@@ -267,7 +235,6 @@ function Spells.Scan()
             if best then best.best = true end
             Spells.heals[name] = entry
         elseif cleanseDef or otherDef then
-            -- the highest rank known; cast by name (the game picks the highest rank too)
             local highest
             for rank, r in pairs(ranks) do
                 if not highest or rank > highest.rank then highest = { rank = rank, id = r.id, subName = r.subName } end
@@ -285,9 +252,6 @@ function Spells.Scan()
     KH:Fire("SPELLS_UPDATED")
 end
 
--- lookups ------------------------------------------------------------------------------------
-
--- rank: a number, "max", "max-1", "max-2" ... ; returns the info for that rank or the closest known
 function Spells.Resolve(name, rank)
     local single = Spells.cleanses[name] or Spells.others[name]
     if single then return single.info end
@@ -309,7 +273,6 @@ function Spells.Resolve(name, rank)
         n = heal.maxRank - back
     end
     n = math.max(1, math.min(n, heal.maxRank))
-    -- known ranks can have gaps (an untrained rank): take the nearest known one at or below
     for i = n, 1, -1 do
         if heal.ranks[i] then return heal.ranks[i] end
     end
@@ -327,8 +290,6 @@ function Spells.Def(name)
     if other then return other.def, "other" end
 end
 
--- spellbook spells this addon has no data for whose tooltip talks about healing, shielding or
--- restoring health (Forever-only spells, for the game check report): { { id, name, text }, ... }
 function Spells.UnknownHealingSpells()
     local data = ClassData.ForPlayer()
     local knownNames = {}
@@ -343,7 +304,6 @@ function Spells.UnknownHealingSpells()
         local name = entry.name or SpellName(entry.id)
         if name and not knownNames[name] and not seen[name] then
             local text = Description(entry.id)
-            -- "Health by 180" (Bear Form) isn't healing
             local lower = text and string.gsub(string.lower(text), "health", "")
             if lower and (lower:find("heal") or lower:find("absorb") or lower:find("restor")) then
                 seen[name] = true
@@ -355,7 +315,6 @@ function Spells.UnknownHealingSpells()
     return out
 end
 
--- every known heal rank, sorted by spell then rank (for the Spells tab)
 function Spells.AllHealRanks()
     local out = {}
     for _, entry in pairs(Spells.heals) do
@@ -368,9 +327,6 @@ function Spells.AllHealRanks()
     return out
 end
 
--- the biggest shield she can cast (a full shield bar), nil when she has none. Asked on every
--- shield change of every frame, so it's worked out once per spell scan (Scan makes a new heals
--- table; amounts only change there).
 local shieldCache = {}
 
 function Spells.BiggestShield()
@@ -395,9 +351,6 @@ function Spells.Short(info)
     return short
 end
 
--- events -------------------------------------------------------------------------------------
-
--- in combat the game may hide +healing and spell details: rescan after the fight
 local function Rescan()
     KH:Debounce("spellScan", 0.5, function()
         if InCombatLockdown() then
@@ -413,7 +366,6 @@ for _, event in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "PLAYER_LEVEL
     KH:RegisterEvent(event, Rescan)
 end
 
--- gear changes +healing
 KH:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function()
     KH:Debounce("bonusCheck", 1, function()
         local bonus = BonusHealing()

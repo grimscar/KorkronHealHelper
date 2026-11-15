@@ -2,7 +2,7 @@
 ## Title: |cffc41f3bKor'kron|r Heal Helper
 ## Notes: Healer frames with click-casting, a "which rank?" helper for mana-efficient healing, and cleanse alerts. Type /khh to open.
 ## Author: Grimscar
-## Version: 0.8.0
+## Version: 0.8.1
 ## SavedVariables: KorkronHealHelperDB
 ## SavedVariablesPerCharacter: KorkronHealHelperCharDB
 ## IconTexture: Interface\Icons\Spell_Nature_MagicImmunity

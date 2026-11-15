@@ -1,24 +1,8 @@
--- Kor'kron Heal Helper: click-casting on the healer frames.
---
--- A binding says what a click on a frame does: cast a heal or cleanse on that person, target
--- them, or open their menu. Keys follow the game's secure button attributes: "1" = left click,
--- "shift-2" = shift + right click, and so on. Bindings name a spell and a rank ("max", "max-1",
--- or a number), so they keep working as she levels and learns new ranks. A binding may list
--- fallback spells for while the first isn't learned yet (Greater Heal, else Heal, else Lesser Heal).
--- Rank "best" is the most mana-efficient rank (from her real heals once the addon has seen them).
---
--- The game doesn't let a click choose its rank by itself (it can't change in combat, and health is
--- hidden), so several ranks sit on modifier clicks and the frames show, by colour, which one fits.
---
--- Click-casting uses protected (secure) frames, which the game only lets addons change out of
--- combat. Changes made in combat are applied the moment combat ends.
 local _, KH = ...
 
 local Bindings = {}
 KH.Bindings = Bindings
 
--- every click we offer, in display order
--- color: the frame border and advice text when this click is the one that fits
 Bindings.CLICKS = {
     { key = "1", label = "Left", short = "L", color = { 0.3, 1, 0.4 } },
     { key = "shift-1", label = "Shift + Left", short = "S-L", color = { 0.3, 0.6, 1 } },
@@ -46,7 +30,6 @@ local function Copy(b)
     return { spell = b.spell, rank = b.rank, action = b.action, fallback = fallback }
 end
 
--- the saved bindings; the first time (or after a class change) they start from the class defaults
 function Bindings.Get()
     local char = KH.char
     local data, classTag = KH.ClassData.ForPlayer()
@@ -64,7 +47,6 @@ function Bindings.Click(key)
     return CLICK_BY_KEY[key]
 end
 
--- the spell a binding casts right now: its first learned spell (the binding's, then fallbacks)
 function Bindings.Spell(b)
     if not (b and b.spell) then return nil end
     local info = KH.Spells.Resolve(b.spell, b.rank)
@@ -88,7 +70,6 @@ function Bindings.Reset()
     KH:Fire("BINDINGS_UPDATED")
 end
 
--- "Healing Wave rank 3 (max-2)" style description of a saved binding
 function Bindings.Describe(b)
     if not b then return "|cff808080nothing|r" end
     if b.action then return Bindings.ACTION_LABELS[b.action] or b.action end
@@ -105,7 +86,6 @@ function Bindings.Describe(b)
     return text
 end
 
--- bindings with their spells looked up: { { key, label, short, binding, info }, ... } in CLICKS order
 function Bindings.Resolved()
     local out = {}
     local saved = Bindings.Get()
@@ -119,8 +99,6 @@ function Bindings.Resolved()
     return out
 end
 
--- spell clicks that need the game's Self Cast key held down, so the game sends them to her instead
--- of the person clicked: { "Alt + Left: Power Word: Shield", ... }
 function Bindings.SelfCastClashes()
     local out = {}
     local key = KH.SelfCastKey()
@@ -134,17 +112,11 @@ function Bindings.SelfCastClashes()
     return out
 end
 
--- "shift-2" -> "shift-", "2"
 local function SplitKey(key)
     local mod, button = string.match(key, "^(.-)(%d)$")
     return mod or "", button
 end
 
--- The macro a spell click runs on `unit`:
---   /cast [@party2,help,dead] Ancestral Spirit; [@party2,help,nodead] Healing Wave(Rank 3)
---   /stopspelltarget
--- The resurrect part only when smart resurrect is on and she knows one. /stopspelltarget
--- cancels a cast that couldn't land, so it never waits on the cursor for the next click.
 function Bindings.CastMacro(unit, castName)
     local res = KH.db.settings.smartRes and KH.Spells.res
     local line = "[@" .. unit .. ",help,nodead] " .. castName
@@ -154,8 +126,6 @@ function Bindings.CastMacro(unit, castName)
     return "/cast " .. line .. "\n/stopspelltarget"
 end
 
--- the secure attributes for every click on a frame showing `unit`: { { name, value }, ... };
--- unbound clicks are cleared
 function Bindings.Attributes(unit)
     local attrs = {}
     local saved = Bindings.Get()
@@ -181,8 +151,6 @@ function Bindings.Attributes(unit)
     return attrs
 end
 
--- everything Attributes() depends on apart from the unit, as one string: how spells are cast,
--- smart resurrect, and what each click does (its action, or the spell rank it resolves to)
 function Bindings.Signature()
     local saved = Bindings.Get()
     local s = KH.db.settings
@@ -201,9 +169,6 @@ function Bindings.Signature()
     return table.concat(parts, "|")
 end
 
--- out of combat only (protected frame). sig (optional): Signature(), worked out once for all the
--- frames; a frame whose unit and clicks are unchanged keeps its attributes (39 of them, and every
--- roster change, settings change and edit-mode drag used to rewrite them all)
 function Bindings.ApplyTo(button, sig)
     local unit = button:GetAttribute("unit")
     if sig and button.khhSig == sig and button.khhUnit == unit then return false end

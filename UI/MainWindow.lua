@@ -1,4 +1,3 @@
--- Kor'kron Heal Helper: the main window (Spells, Clicks and Settings tabs).
 local _, KH = ...
 
 local UI, Style = KH.UI, KH.Style
@@ -14,8 +13,6 @@ local TABS = { { key = "SPELLS", label = "Spells" }, { key = "CLICKS", label = "
 
 local function S() return KH.db.settings end
 local function Changed() KH:Fire("SETTINGS_UPDATED") end
-
--- spells tab: what each rank heals and costs ------------------------------------------------------
 
 local COLUMNS = {
     { title = "Spell", width = 150, justify = "LEFT" },
@@ -89,8 +86,6 @@ local function RefreshSpells(panel)
     panel.footer:SetText(string.format("+Healing from gear: |cffffffff%d|r (already in Heals; changing it starts Seen over).   You can remove: |cffffffff%s|r%s",
         KH.Spells.bonus, KH.Probe.DispelList(), #cleanses > 0 and (" (" .. table.concat(cleanses, ", ") .. ")") or ""))
 end
-
--- clicks tab: what each click on a frame does ----------------------------------------------------------
 
 local function BindingMenu(anchorButton, key)
     local options = {}
@@ -180,8 +175,6 @@ local function RefreshClicks(panel)
         row.button:SetText(KH.Bindings.Describe(saved[row.key]))
     end
 end
-
--- settings tab ------------------------------------------------------------------------------------------
 
 local function BuildSettings(panel)
     local col1, col2 = 0, 320
@@ -276,9 +269,6 @@ local function RefreshSettings(panel)
     panel.castBy:SetText("Cast by: " .. (labels[S().castBy] or S().castBy))
 end
 
--- layout tab: sizes, bars, text ----------------------------------------------------------------------------
-
--- a button that steps through choices: "Health text: Percent"
 local function Cycle(panel, label, tooltip, choices, get, set)
     local btn
     btn = UI.Button(panel, "", 260, function()
@@ -375,8 +365,6 @@ end
 local function RefreshLayout(panel)
     for _, c in ipairs(panel.cycles) do c:Refresh() end
 end
-
--- window ------------------------------------------------------------------------------------------------
 
 local BUILDERS = { SPELLS = BuildSpells, CLICKS = BuildClicks, LAYOUT = BuildLayout, SETTINGS = BuildSettings }
 local REFRESHERS = { SPELLS = RefreshSpells, CLICKS = RefreshClicks, LAYOUT = RefreshLayout, SETTINGS = RefreshSettings }

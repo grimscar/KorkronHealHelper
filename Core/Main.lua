@@ -1,4 +1,3 @@
--- Kor'kron Heal Helper: startup.
 local ADDON_NAME, KH = ...
 
 KH:RegisterEvent("ADDON_LOADED", function(name)
@@ -31,7 +30,6 @@ KH:RegisterEvent("PLAYER_LOGIN", function()
     end)
 end)
 
--- spell data (tooltip numbers) can arrive a little after login
 KH:RegisterEvent("PLAYER_ENTERING_WORLD", function()
     KH:After(2, KH.Spells.Scan)
 end)

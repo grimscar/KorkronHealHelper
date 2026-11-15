@@ -1,15 +1,3 @@
--- Kor'kron Heal Helper: a small gold shield bar with its number under friendly nameplates, so
--- it follows the person around the screen.
---
--- It shows the game's total of damage shields on that person (Power Word: Shield, hers or
--- another priest's). That number is hidden from addons on Forever, even out of combat, so it's
--- handed to the bar and the text as it is. A full bar is the biggest shield she can cast (else
--- their max health). Each bar sits in a clip on an invisible bar with the range (0, 1), so
--- without a shield nothing is drawn, with no comparison on the hidden number.
---
--- The game hides friendly nameplates from addons inside dungeons and raids, so this works in the
--- open world. Friendly nameplates have to be on (Shift+V by default). She has no nameplate of
--- her own, so her shield shows on her frame only.
 local _, KH = ...
 
 local Plates = {}
@@ -19,12 +7,11 @@ local BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 Plates.WIDTH, Plates.HEIGHT = 60, 10
 Plates.stats = { added = 0, forbidden = 0 }
 
-local byUnit = {}   -- [nameplate unit] = widget
-local pool = {}     -- [plate] = widget
+local byUnit = {}
+local pool = {}
 
 local function S() return KH.db.settings end
 
--- a gauge: invisible gate, the clip that hides everything without a shield, bar and number
 local function Gauge(parent, width, height, fontSize)
     local w = CreateFrame("Frame", nil, parent)
     w:SetSize(width, height)
@@ -65,8 +52,6 @@ local function Fill(w, unit)
     if not pcall(w.text.SetFormattedText, w.text, "%d", amount) then w.text:SetText("") end
 end
 
--- nameplates ----------------------------------------------------------------------------------------
-
 local function Widget(plate)
     local w = pool[plate]
     if w then return w end
@@ -94,7 +79,6 @@ local function Add(unit)
     if not (S().frames.plateShields and KH.API.absorbs and C_NamePlate and C_NamePlate.GetNamePlateForUnit) then
         return
     end
-    -- enemies don't get one (unknown counts as friendly: an empty shield draws nothing)
     if KH.Bool(UnitCanAttack("player", unit)) == true then return end
     local plate = C_NamePlate.GetNamePlateForUnit(unit)
     if not plate or (plate.IsForbidden and plate:IsForbidden()) then
@@ -118,9 +102,6 @@ function Plates.Count()
     return n
 end
 
--- events ------------------------------------------------------------------------------------------------
-
--- the setting changed: redo every plate on screen
 function Plates.Refresh()
     for unit in pairs(byUnit) do Remove(unit) end
     for i = 1, 40 do

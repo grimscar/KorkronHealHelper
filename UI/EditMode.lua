@@ -1,9 +1,3 @@
--- Kor'kron Heal Helper: edit mode (/khh edit).
---
--- A box over the healer frames: drag its edges or corners to resize every frame, drag the middle
--- to move them. Without a group, five preview frames (copies of you) show the layout. The frames
--- are protected, so edit mode is out of combat only and closes itself when a fight starts.
--- Everything else (bar sizes, text, spacing) is on the Layout tab.
 local _, KH = ...
 
 local UI = KH.UI
@@ -12,7 +6,6 @@ UI.Edit = Edit
 
 local MIN_W, MAX_W, MIN_H, MAX_H = 50, 300, 20, 120
 local HANDLE = 10
--- where each handle sits and which way it resizes: sx -1 = left edge, 1 = right; sy 1 = top, -1 = bottom
 local HANDLES = {
     { "TOPLEFT", -1, 1 }, { "TOP", 0, 1 }, { "TOPRIGHT", 1, 1 }, { "RIGHT", 1, 0 },
     { "BOTTOMRIGHT", 1, -1 }, { "BOTTOM", 0, -1 }, { "BOTTOMLEFT", -1, -1 }, { "LEFT", -1, 0 },
@@ -24,15 +17,12 @@ local function F() return KH.db.settings.frames end
 
 local function Clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
--- cursor in the frames' own (scaled) units
 local function Cursor()
     local x, y = GetCursorPosition()
     local scale = KH.Frames.Anchor():GetEffectiveScale()
     return x / scale, y / scale
 end
 
--- store the position as an offset from the screen's top left, so resizing from the left or top
--- edge can move the frames by exactly what they grew
 local function ToTopLeft()
     local anchor, f = KH.Frames.Anchor(), F()
     local left, top = anchor:GetLeft(), anchor:GetTop()
@@ -42,7 +32,6 @@ local function ToTopLeft()
     f.point, f.x, f.y = "TOPLEFT", KH.Round(left), KH.Round(top - screenTop * ratio)
 end
 
--- the box covers every frame shown
 function Edit.Fit()
     if not box then return end
     local f = F()
@@ -65,7 +54,6 @@ function Edit.EndDrag()
     KH:Fire("SETTINGS_UPDATED")
 end
 
--- while dragging: the box edge follows the cursor, shared out over the columns or rows
 function Edit.UpdateDrag()
     if not drag then return end
     if InCombatLockdown() then
@@ -96,7 +84,6 @@ local function Build()
     box = CreateFrame("Frame", "KorkronHealHelperEditBox", anchor)
     box:SetPoint("TOPLEFT", anchor, "TOPLEFT", -4, 4)
     box:SetFrameStrata("HIGH")
-    -- catches the mouse, so clicking the preview frames doesn't cast
     box:EnableMouse(true)
     box.bg = box:CreateTexture(nil, "BACKGROUND")
     box.bg:SetAllPoints()
@@ -105,7 +92,6 @@ local function Build()
     box.title:SetPoint("BOTTOM", box, "TOP", 0, 22)
     box.title:SetText("Edit mode: drag the edges or corners to resize, the middle to move")
 
-    -- move: drag the middle
     box:SetScript("OnMouseDown", function(_, mouse)
         if mouse == "LeftButton" and not InCombatLockdown() then anchor:StartMoving() end
     end)

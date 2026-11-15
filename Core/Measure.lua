@@ -1,28 +1,15 @@
--- Kor'kron Heal Helper: learns what her heals really heal for.
---
--- On Forever the tooltip doesn't always match the real heal: low ranks heal less than their
--- tooltip says. So a "HEAL" combat text within half a second of one of her direct heals finishing
--- is taken as that heal's result. Either can come first: the beta sent the cast first, the
--- release sends the heal first. Heals far off the tooltip (HoT ticks, other healers) and
--- critical heals are skipped. When the game hides the
--- amount nothing is learned (the probe counts those). Results are kept per character and spell
--- ID, and thrown away when her +healing changes. Once a rank has a few results, Spells uses their
--- average instead of the tooltip.
 local _, KH = ...
 
 local Measure = {}
 KH.Measure = Measure
 
-Measure.MIN = 3          -- results needed before they replace the tooltip
-Measure.WINDOW = 0.5     -- seconds between the cast finishing and its heal (either order)
+Measure.MIN = 3
+Measure.WINDOW = 0.5
 Measure.stats = { seen = 0, hidden = 0, crits = 0,
-    -- where results get lost, for the probe: her direct heal casts, casts whose spell ID was
-    -- hidden, combat-text events of any kind, ones whose type was hidden, heals, heals too late
-    -- and heals that landed next to her cast but didn't fit its tooltip (HoT ticks, other healers)
     casts = 0, castHidden = 0, events = 0, actionHidden = 0, heals = 0, late = 0, odd = 0 }
 
-local pending   -- { id, time } of her last direct heal, waiting for its heal
-local lastHeal  -- { amount, indicator, time } of the last heal, waiting for its cast
+local pending
+local lastHeal
 
 local function Data()
     local m = KH.char.measured
@@ -33,14 +20,12 @@ local function Data()
     return m.spells
 end
 
--- the results for a spell ID (any count), or nil
 function Measure.Seen(id)
     local m = KH.char and KH.char.measured
     if not m or m.bonus ~= KH.Spells.bonus then return nil end
     return m.spells[id]
 end
 
--- the average real heal, once there are enough results to trust
 function Measure.Average(id)
     local e = Measure.Seen(id)
     if e and e.n >= Measure.MIN then return e.sum / e.n end
@@ -56,7 +41,6 @@ function Measure.Record(id, amount)
     e.n, e.sum = e.n + 1, e.sum + amount
     e.min, e.max = math.min(e.min, amount), math.max(e.max, amount)
     Measure.stats.seen = Measure.stats.seen + 1
-    -- new numbers for the Spells tab and the frames' advice
     KH:OutOfCombat("measured", KH.Spells.Scan)
 end
 
@@ -65,7 +49,6 @@ function Measure.Clear()
     KH.Spells.Scan()
 end
 
--- one heal result for a spell: learned, or counted as hidden or critical
 local function Use(id, amount, indicator)
     local value = KH.Num(amount)
     if not value or not KH.Readable(indicator) then
@@ -77,10 +60,8 @@ local function Use(id, amount, indicator)
     end
 end
 
--- false when a readable amount can't be this spell's heal: far below or above its tooltip. A HoT
--- tick (Rejuvenation, Renew) or someone else's heal landing next to her cast is left out this way.
 local function Fits(id, amount, indicator)
-    if KH.Readable(indicator) and indicator == "CRITICAL" then return true end -- counted, then skipped
+    if KH.Readable(indicator) and indicator == "CRITICAL" then return true end
     local value = KH.Num(amount)
     local info = KH.Spells.byID[id]
     if not value or not (info and info.parsed and info.min and info.max) then return true end
@@ -107,7 +88,6 @@ Measure.castEvent = KH:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit, 
 end)
 
 Measure.combatEvent = KH:RegisterEvent("UNIT_COMBAT", function(unit, action, indicator, amount)
-    -- (not nameplates: another player's heal nearby could be taken for hers)
     if not KH.WatchedUnit(unit) then return end
     local stats = Measure.stats
     stats.events = stats.events + 1
@@ -120,7 +100,6 @@ Measure.combatEvent = KH:RegisterEvent("UNIT_COMBAT", function(unit, action, ind
     local cast = pending
     if cast and GetTime() - cast.time <= Measure.WINDOW then
         if not Fits(cast.id, amount, indicator) then
-            -- not her heal: keep waiting for the real one
             stats.odd = stats.odd + 1
             return
         end
@@ -130,6 +109,5 @@ Measure.combatEvent = KH:RegisterEvent("UNIT_COMBAT", function(unit, action, ind
     end
     pending = nil
     if cast then stats.late = stats.late + 1 end
-    -- maybe her cast's event is still to come
     lastHeal = { amount = amount, indicator = indicator, time = GetTime() }
 end)

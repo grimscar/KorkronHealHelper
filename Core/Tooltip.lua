@@ -1,10 +1,8 @@
--- Kor'kron Heal Helper: heal size and mana efficiency on spell tooltips (spellbook, action bars).
 local _, KH = ...
 
 local Tooltip = {}
 KH.Tooltip = Tooltip
 
--- the extra tooltip lines for a spell ID: { { text, r, g, b }, ... }
 function Tooltip.Lines(spellID)
     local info = KH.Spells.byID[spellID]
     if not info or not info.amount then return nil end

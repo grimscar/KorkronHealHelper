@@ -1,27 +1,8 @@
--- Kor'kron Heal Helper: "which heal should I click?"
---
--- The choices are the heals bound to clicks (Bindings.lua), so a suggestion always names a
--- click she has. The rule:
---   * the biggest "efficient" heal that fits the missing health (allowing a little overheal),
---     after the healing her own HoTs on them will still do (Tracker.lua);
---   * the fast heal instead when they'd reach 0 before her slowest efficient heal could land
---     (damage per second from Tracker.lua), or, while damage numbers are hidden, below the
---     emergency health line;
---   * nothing while the missing health is smaller than the smallest heal.
---
--- In combat the game hides health from addons, so Lua can't compare numbers. Instead every
--- choice becomes a band of health percentage (Plan) and each band becomes a curve that the game
--- evaluates itself (UnitHealthPercent(unit, predicted, curve)): 1 inside the band, 0 outside.
--- Turning missing health into a percentage needs the person's maximum health. The frames remember
--- it while it's readable, out of combat.
 local _, KH = ...
 
 local Advisor = {}
 KH.Advisor = Advisor
 
--- the heal choices from the current click bindings:
---   { normal = { option, ... } (smallest heal first), emergency = option or nil }
---   option = { key, label, short, info, amount }
 function Advisor.Options()
     local normal, fast = {}, {}
     for _, b in ipairs(KH.Bindings.Resolved()) do
@@ -36,13 +17,11 @@ function Advisor.Options()
             end
         end
     end
-    -- no efficient heal bound: the fast ones are the choices
     if #normal == 0 then normal, fast = fast, {} end
     table.sort(normal, function(a, b)
         if a.amount ~= b.amount then return a.amount < b.amount end
         return (a.info.cost or 0) < (b.info.cost or 0)
     end)
-    -- the same heal bound twice: keep one
     local unique = {}
     for _, o in ipairs(normal) do
         local last = unique[#unique]
@@ -55,8 +34,6 @@ function Advisor.Options()
     return { normal = unique, emergency = emergency }
 end
 
--- Bands of health fraction (0 = dead, 1 = full) for one person:
---   { { option, lo, hi }, ... }   option shows while lo <= health < hi
 function Advisor.Plan(options, maxHealth, settings)
     local plan = {}
     if not maxHealth or maxHealth <= 0 then return plan end
@@ -80,7 +57,6 @@ function Advisor.Plan(options, maxHealth, settings)
     return plan
 end
 
--- Lua version of the same rule, for when health is readable (and for the tests)
 function Advisor.Choose(plan, fraction)
     for _, band in ipairs(plan) do
         if fraction >= band.lo and fraction < band.hi then return band end
@@ -88,7 +64,6 @@ function Advisor.Choose(plan, fraction)
     end
 end
 
--- a step curve that is 1 inside the band and 0 outside
 function Advisor.Curve(band)
     local curve = C_CurveUtil.CreateCurve()
     curve:SetType(Enum.LuaCurveType.Step)
@@ -102,9 +77,6 @@ function Advisor.Curve(band)
     return curve
 end
 
--- missing health at which each efficient heal "fits", smallest first (the frames' gates use
--- these; they need no maximum health): { { option, threshold }, ... }
--- `hot` = healing her HoTs on them will still do: a heal only fits the health they still need.
 function Advisor.Thresholds(options, settings, hot)
     local overheal = 1 + (settings.overheal or 0)
     local out = {}
@@ -114,10 +86,6 @@ function Advisor.Thresholds(options, settings, hot)
     return out
 end
 
--- Emergency by time: the fast heal is only worth its mana when they'd reach 0 before her slowest
--- efficient heal could land. With `dps` damage per second, that's below this much health
--- (the slowest cast plus a safety margin, times the damage rate). While she's being hit herself,
--- her casts get pushed back: the delay she has really had lately is added. 0 = no danger.
 function Advisor.DangerLine(options, dps, settings)
     if not options.emergency or not dps or dps <= 0 then return 0 end
     local cast = 0
@@ -127,7 +95,6 @@ function Advisor.DangerLine(options, dps, settings)
     return dps * (math.max(cast, 1.5) + KH.Tracker.CastDelay() + (settings.safety or 1))
 end
 
--- true while the emergency follows the danger line (damage numbers readable), else the health %
 function Advisor.ByTime(settings)
     return settings.emergencyByTime and KH.Tracker.DamageReadable()
 end
