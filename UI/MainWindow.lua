@@ -192,7 +192,9 @@ local function BuildSettings(panel)
     Check(1, "Class coloured health", nil, function() return f().classColors end, function(v) f().classColors = v end)
     Check(1, "Show incoming heals", "A faint green bar after the health: how much the heals being cast on them will bring back, yours and other healers'.",
         function() return f().showIncoming end, function(v) f().showIncoming = v end)
-    Check(1, "Show shields", "A gold bar above the health for damage shields like Power Word: Shield. It drains as the shield is hit. Its height is on the Layout tab.",
+    Check(1, "Show shields", "A gold bar above the health for damage shields like Power Word: Shield. It drains as the shield is hit. "
+        .. "After you shield someone, a violet bar on the same strip counts down Weakened Soul's 15 sec: they can't be shielded again until it's gone. "
+        .. "Its height is on the Layout tab.",
         function() return f().showShields end, function(v) f().showShields = v end)
     Check(1, "Shield bar under nameplates", "A small gold bar with the shield's number under friendly nameplates. Needs friendly nameplates on (Shift+V). "
         .. "The game doesn't allow it on friendly nameplates inside dungeons and raids.",

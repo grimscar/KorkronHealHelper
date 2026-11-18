@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0
+
+- **Priests: Weakened Soul on the frames.** After you shield someone, a violet bar on the shield strip at the top of their frame counts down the 15 seconds before they can be shielded again, under the gold bar of the shield itself. Hover their frame to see the seconds left. The game refuses a shield clicked before then ("Immune"); now you can see when to wait. It only knows your own shields: the game hides another priest's Weakened Soul during a fight. It follows "Show shields" and the shield bar's height.
+
 ## 0.9.0
 
 - **Choose the order of your party frames.** On the Layout tab, **Party order** puts your party (and each raid group) in role order: Tank, Healer, Damage, or any other order of the three. It starts as the game lists your party, so nothing changes until you pick one.

@@ -15,6 +15,7 @@ local casting
 
 local damage = {}
 local hots = {}
+local lockouts = {}
 local sent
 local lastClick
 
@@ -69,6 +70,26 @@ function Tracker.HotRemaining(unit)
     return total
 end
 
+function Tracker.Lockout(unit)
+    local guid = GUID(unit)
+    local l = guid and lockouts[guid]
+    if not l then return 0 end
+    local left = l.ends - GetTime()
+    if left <= 0 then
+        lockouts[guid] = nil
+        return 0
+    end
+    return left, l.duration
+end
+
+function Tracker.Locking()
+    local now = GetTime()
+    for guid, l in pairs(lockouts) do
+        if l.ends <= now then lockouts[guid] = nil end
+    end
+    return next(lockouts) ~= nil
+end
+
 function Tracker.Busy()
     for guid in pairs(damage) do Recent(guid) end
     for guid, mine in pairs(hots) do
@@ -80,6 +101,7 @@ end
 function Tracker.Clear()
     wipe(damage)
     wipe(hots)
+    wipe(lockouts)
 end
 
 function Tracker.Clicked(unit)
@@ -92,6 +114,12 @@ local function HotOf(spellID)
     if not def then return nil end
     if def.kind == "hot" and def.duration and info.amount then return info.name, info.amount, def.duration end
     if def.hot and info.hotAmount then return info.name .. " (HoT)", info.hotAmount, def.hot end
+end
+
+local function LockoutOf(spellID)
+    local info = KH.Spells.byID[spellID]
+    local def = info and KH.Spells.Def(info.name)
+    return def and def.lockout
 end
 
 local function TargetOf(castGUID)
@@ -173,9 +201,15 @@ KH:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(unit, castGUID, spellID)
     CastDone(KH.Readable(castGUID) and castGUID or nil)
     if not KH.Readable(spellID) then return end
     local name, amount, duration = HotOf(spellID)
-    if not name then return end
+    local lockout = LockoutOf(spellID)
+    if not (name or lockout) then return end
     local target, why = TargetOf(KH.Readable(castGUID) and castGUID or nil)
     local guid = GUID(target)
+    if lockout and guid then
+        lockouts[guid] = { ends = GetTime() + lockout, duration = lockout }
+        KH:Fire("TRACKER_UPDATED")
+    end
+    if not name then return end
     if not guid then
         Tracker.stats.hotsUnplaced = Tracker.stats.hotsUnplaced + 1
         Tracker.stats.lastUnplaced = name .. ": " .. tostring(why)
@@ -209,7 +243,9 @@ KH:RegisterEvent("UNIT_COMBAT", function(unit, action, _, amount)
 end)
 
 KH:RegisterEvent("UNIT_HEALTH", function(unit)
-    if next(hots) == nil then return end
+    if next(hots) == nil and next(lockouts) == nil then return end
     local guid = GUID(unit)
-    if guid and hots[guid] and KH.Bool(UnitIsDeadOrGhost(unit)) then hots[guid] = nil end
+    if guid and (hots[guid] or lockouts[guid]) and KH.Bool(UnitIsDeadOrGhost(unit)) then
+        hots[guid], lockouts[guid] = nil, nil
+    end
 end)

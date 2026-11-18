@@ -574,12 +574,23 @@ function Frames.UpdateShield(button)
     if not unit then return end
     local show = Frames.ShieldSpace() > 0
     button.shield:SetShown(show)
+    Frames.UpdateLockout(button)
     if not show then return end
     button.shield:SetHeight(S().frames.shieldHeight)
     local amount = UnitGetTotalAbsorbs(unit)
     if KH.Readable(amount) and amount == nil then amount = 0 end
     button.shield:SetMinMaxValues(0, KH.Spells.BiggestShield() or UnitHealthMax(unit))
     button.shield:SetValue(amount)
+end
+
+function Frames.UpdateLockout(button)
+    local left, full = 0
+    if button.unit and Frames.ShieldSpace() > 0 then left, full = KH.Tracker.Lockout(button.unit) end
+    button.lockout:SetShown(left > 0)
+    if left > 0 then
+        button.lockout:SetMinMaxValues(0, full)
+        button.lockout:SetValue(left)
+    end
 end
 
 function Frames.UpdateIncoming(button)
@@ -741,6 +752,12 @@ local function Setup(button)
     button.incomingClip = incomingClip
     button.incoming = incoming
 
+    local lockout = CreateFrame("StatusBar", nil, content)
+    lockout:SetStatusBarTexture(BAR_TEXTURE)
+    lockout:SetStatusBarColor(0.6, 0.45, 0.95, 0.7)
+    lockout:Hide()
+    button.lockout = lockout
+
     local shield = CreateFrame("StatusBar", nil, content)
     shield:SetStatusBarTexture(BAR_TEXTURE)
     shield:SetStatusBarColor(1, 0.82, 0.25, 1)
@@ -749,6 +766,8 @@ local function Setup(button)
     shield:SetHeight(5)
     shield:SetMinMaxValues(0, 1)
     shield:SetValue(0)
+    shield:SetFrameLevel(lockout:GetFrameLevel() + 1)
+    lockout:SetAllPoints(shield)
     button.shield = shield
 
     local mana = CreateFrame("StatusBar", nil, content)
@@ -848,6 +867,10 @@ function Frames.ShowTooltip(button)
     if not button.unit then return end
     GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
     GameTooltip:SetUnit(button.unit)
+    local locked = KH.Tracker.Lockout(button.unit)
+    if locked > 0 then
+        GameTooltip:AddLine(("Weakened Soul: %d sec until you can shield them again"):format(math.ceil(locked)), 0.7, 0.6, 1)
+    end
     GameTooltip:AddLine(" ")
     for _, b in ipairs(KH.Bindings.Resolved()) do
         GameTooltip:AddDoubleLine(b.label, KH.Bindings.Describe(b.binding), 1, 0.82, 0, 1, 1, 1)
@@ -1092,11 +1115,14 @@ KH:RegisterEvent("PLAYER_REGEN_ENABLED", function()
 end)
 
 KH:On("TRACKER_UPDATED", function()
-    for _, b in pairs(byUnit) do Frames.UpdateAdvice(b) end
+    for _, b in pairs(byUnit) do
+        Frames.UpdateAdvice(b)
+        Frames.UpdateLockout(b)
+    end
 end)
 
 local ticker = CreateFrame("Frame")
-local elapsed, adviceElapsed, wasBusy = 0, 0, false
+local elapsed, adviceElapsed, wasBusy, wasLocking = 0, 0, false, false
 
 local function EachFrame(fn)
     for _, b in pairs(byUnit) do
@@ -1109,6 +1135,9 @@ ticker:SetScript("OnUpdate", function(_, dt)
     if elapsed < 0.25 then return end
     elapsed = 0
     EachFrame(Frames.UpdateRange)
+    local locking = KH.Safe(KH.Tracker.Locking)
+    if locking or wasLocking then EachFrame(Frames.UpdateLockout) end
+    wasLocking = locking
     if adviceElapsed < 0.5 then return end
     adviceElapsed = 0
     local busy = KH.Safe(KH.Tracker.Busy)
