@@ -52,8 +52,9 @@ One frame per group member: you alone (when "Show my frame when solo" is on), yo
   - health text: missing / percent / current / both / none;
   - power bar: everyone / mana users only / off;
   - power text;
-  - raid groups as columns or rows.
-  - "Reset layout" puts it all back.
+  - raid groups as columns or rows;
+  - **party order**: as the game lists your party, or by role in any order you like (Tank, Healer, Damage; Healer, Tank, Damage...). In a raid each group is sorted on its own. A player's role is the one the game has (group finder or role check); under **Roles in your group** you can click anyone to set their role yourself (Tank, Healer, Damage, then back to the game's), and it's remembered for that character. With no role at all you count as Healer and everyone else as Damage. Frames move when a fight ends, never during one.
+  - "Reset layout" puts sizes, bars and text back.
 
 ## The Spells tab
 

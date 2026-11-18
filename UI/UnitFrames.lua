@@ -17,6 +17,7 @@ local POWER_COLORS = { [0] = { 0.25, 0.45, 1 }, [1] = { 0.9, 0.2, 0.2 }, [2] = {
 local TINT_ALPHA = 0.55
 local DISPEL_FILTERS = { "HARMFUL|RAID", "HARMFUL|RAID_PLAYER_DISPELLABLE" }
 local DISPEL_KINDS = { "Curse", "Poison", "Disease", "Magic" }
+local ROLES = { TANK = true, HEALER = true, DAMAGER = true }
 
 local function S() return KH.db.settings end
 
@@ -854,6 +855,37 @@ function Frames.ShowTooltip(button)
     GameTooltip:Show()
 end
 
+function Frames.RoleOf(unit)
+    local guid = KH.Text(UnitGUID(unit))
+    local mine = guid and KH.db.roles[guid]
+    if mine then return mine, "mine" end
+    local game = UnitGroupRolesAssigned and KH.Text(UnitGroupRolesAssigned(unit))
+    if game and ROLES[game] then return game, "game" end
+    if KH.Bool(UnitIsUnit(unit, "player")) then return "HEALER", "you" end
+    return "DAMAGER", "none"
+end
+
+function Frames.SetRole(unit, role)
+    local guid = KH.Text(UnitGUID(unit))
+    if guid then KH.db.roles[guid] = role end
+end
+
+local function SortByRole(list)
+    local order = S().frames.order
+    if order == "group" then return end
+    local rank, n = {}, 0
+    for role in order:gmatch("%a+") do
+        n = n + 1
+        rank[role] = n
+    end
+    for i, entry in ipairs(list) do entry.pos, entry.rank = i, rank[(Frames.RoleOf(entry.unit))] end
+    table.sort(list, function(a, b)
+        if a.group ~= b.group then return a.group < b.group end
+        if a.rank ~= b.rank then return a.rank < b.rank end
+        return a.pos < b.pos
+    end)
+end
+
 function Frames.GroupUnits()
     local list = {}
     if IsInRaid() then
@@ -877,6 +909,7 @@ function Frames.GroupUnits()
     if Frames.editing and not IsInRaid() then
         for i = #list + 1, 5 do list[i] = { unit = "player", group = 1 } end
     end
+    SortByRole(list)
     return list
 end
 
@@ -1045,12 +1078,14 @@ KH:RegisterEvent("UNIT_AURA", ForUnit(UpdateDispelFallback))
 KH:RegisterEvent("PLAYER_TARGET_CHANGED", function()
     for _, b in pairs(byUnit) do Frames.UpdateTarget(b) end
 end)
-KH:RegisterEvent("GROUP_ROSTER_UPDATE", function()
+local function RosterChanged()
     KH:Debounce("roster", 0.2, function()
         Frames.Reassign()
         for _, b in pairs(byUnit) do Frames.UpdateAll(b) end
     end)
-end)
+end
+KH:RegisterEvent("GROUP_ROSTER_UPDATE", RosterChanged)
+KH:RegisterEvent("PLAYER_ROLES_ASSIGNED", RosterChanged)
 KH:RegisterEvent("PLAYER_ENTERING_WORLD", function() Frames.Reassign() end)
 KH:RegisterEvent("PLAYER_REGEN_ENABLED", function()
     for _, b in pairs(byUnit) do Frames.UpdateAll(b) end

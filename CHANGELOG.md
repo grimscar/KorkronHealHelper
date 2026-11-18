@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0
+
+- **Choose the order of your party frames.** On the Layout tab, **Party order** puts your party (and each raid group) in role order: Tank, Healer, Damage, or any other order of the three. It starts as the game lists your party, so nothing changes until you pick one.
+- **Roles in your group**, under it, shows each player's role and where it comes from. Click a name to set their role yourself (Tank, Healer, Damage, then back to the game's); it's remembered for that character, so your usual tank stays a tank. Without a role from you or the game, you count as Healer and others as Damage.
+
 ## 0.8.1
 
 - **The guild's crest**, the Kor'kron Guard's tabard emblem on crimson, now sits in the title band of the settings window, the same in all the Kor'kron mods. After updating, restart the game once (not just `/reload`) so the new art loads.

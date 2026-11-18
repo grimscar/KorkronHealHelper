@@ -18,6 +18,7 @@ local DEFAULTS = {
         scale = 1,
         spacingX = 4, spacingY = 3,
         groupsAs = "columns",
+        order = "group",
         powerHeight = 4,
         shieldHeight = 5,
         showPower = "all",
@@ -76,6 +77,7 @@ function DB:Init()
     db.schema = DB.SCHEMA
     ApplyDefaults(db.settings, DEFAULTS)
     db.probe = db.probe or {}
+    db.roles = db.roles or {}
     KH.db = db
 
     KorkronHealHelperCharDB = KorkronHealHelperCharDB or {}

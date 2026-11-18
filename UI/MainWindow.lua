@@ -294,6 +294,59 @@ end
 
 local LAYOUT_DEFAULTS = { "width", "height", "scale", "spacingX", "spacingY", "groupsAs", "powerHeight", "shieldHeight", "showPower",
     "healthText", "powerText", "nameSize", "textSize" }
+local ORDERS = {
+    { "group", "As the game lists it" },
+    { "TANK,HEALER,DAMAGER", "Tank, Healer, Damage" },
+    { "HEALER,TANK,DAMAGER", "Healer, Tank, Damage" },
+    { "TANK,DAMAGER,HEALER", "Tank, Damage, Healer" },
+    { "HEALER,DAMAGER,TANK", "Healer, Damage, Tank" },
+    { "DAMAGER,TANK,HEALER", "Damage, Tank, Healer" },
+    { "DAMAGER,HEALER,TANK", "Damage, Healer, Tank" },
+}
+local ROLE_NAMES = { TANK = "Tank", HEALER = "Healer", DAMAGER = "Damage" }
+local ROLE_FROM = { mine = "set by you", game = "from the game", you = "you", none = "no role" }
+local NEXT_ROLE = { TANK = "HEALER", HEALER = "DAMAGER" }
+local ROLE_ROWS = 5
+
+local function MyGroup()
+    local list, mine, seen, units = KH.Frames.GroupUnits(), nil, {}, {}
+    for _, e in ipairs(list) do
+        if KH.Bool(UnitIsUnit(e.unit, "player")) then mine = e.group end
+    end
+    for _, e in ipairs(list) do
+        if e.group == mine and not seen[e.unit] then
+            seen[e.unit] = true
+            units[#units + 1] = e.unit
+        end
+    end
+    return units
+end
+
+local function RefreshRoles(panel)
+    local units = MyGroup()
+    for i, btn in ipairs(panel.roles) do
+        local unit = units[i]
+        btn.unit = unit
+        btn:SetShown(unit ~= nil)
+        if unit then
+            local role, from = KH.Frames.RoleOf(unit)
+            btn:SetText(("%s: %s (%s)"):format(KH.Text(UnitName(unit)) or "?", ROLE_NAMES[role], ROLE_FROM[from]))
+        end
+    end
+end
+
+local function RoleButton(panel)
+    local btn
+    btn = UI.Button(panel, "", 260, function()
+        local role, from = KH.Frames.RoleOf(btn.unit)
+        local nextRole = "TANK"
+        if from == "mine" then nextRole = NEXT_ROLE[role] end
+        KH.Frames.SetRole(btn.unit, nextRole)
+        Changed()
+        RefreshRoles(panel)
+    end, "Click to set their role yourself: Tank, Healer, Damage, then back to the game's. Kept for that character.")
+    return btn
+end
 
 local function BuildLayout(panel)
     local f = function() return S().frames end
@@ -340,6 +393,9 @@ local function BuildLayout(panel)
         Cycle(panel, "Groups", "In a raid each group gets its own column (members going down) or row (members going across).",
             { { "columns", "Columns" }, { "rows", "Rows" } },
             function() return f().groupsAs end, function(v) f().groupsAs = v end),
+        Cycle(panel, "Party order", "Who comes first in your party, and in each raid group. A role is the one you set below, "
+            .. "else the one the game has (group finder, role check); with neither you count as Healer and others as Damage.",
+            ORDERS, function() return f().order end, function(v) f().order = v end),
     }
     local cy = -40
     for _, c in ipairs(cycles) do
@@ -351,6 +407,14 @@ local function BuildLayout(panel)
     local editBtn = UI.Button(panel, "Edit mode (drag to resize)", 200, function() UI.Edit.Toggle() end,
         "Shows a box over the frames: drag its edges or corners to resize, the middle to move. Out of combat only.")
     editBtn:SetPoint("TOPLEFT", 340, cy - 12)
+    local rolesHead = UI.Text(panel, "KorkronHealHelperFontNormalSmall")
+    rolesHead:SetPoint("TOPLEFT", 340, cy - 52)
+    rolesHead:SetText("Roles in your group (click to change)")
+    panel.roles = {}
+    for i = 1, ROLE_ROWS do
+        panel.roles[i] = RoleButton(panel)
+        panel.roles[i]:SetPoint("TOPLEFT", 340, cy - 46 - i * 26)
+    end
     local resetLayout = UI.Button(panel, "Reset layout", 120, function()
         local d = KH.DB.Defaults().frames
         for _, key in ipairs(LAYOUT_DEFAULTS) do f()[key] = d[key] end
@@ -364,6 +428,7 @@ end
 
 local function RefreshLayout(panel)
     for _, c in ipairs(panel.cycles) do c:Refresh() end
+    RefreshRoles(panel)
 end
 
 local BUILDERS = { SPELLS = BuildSpells, CLICKS = BuildClicks, LAYOUT = BuildLayout, SETTINGS = BuildSettings }
@@ -409,3 +474,4 @@ end
 
 KH:On("SPELLS_UPDATED", function() Main:Refresh() end)
 KH:On("BINDINGS_UPDATED", function() Main:Refresh() end)
+KH:On("FRAMES_LAID_OUT", function() Main:Refresh() end)
